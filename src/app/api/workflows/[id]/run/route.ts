@@ -78,3 +78,5 @@ export async function POST(
     return error('Internal server error', 500)
   }
 }
+
+export const runtime = 'nodejs'

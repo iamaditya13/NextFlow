@@ -130,3 +130,5 @@ export async function DELETE(
     return error('Internal server error', 500)
   }
 }
+
+export const runtime = 'nodejs'

@@ -48,3 +48,5 @@ export async function POST(req: NextRequest) {
     return error(message, 500)
   }
 }
+
+export const runtime = 'nodejs'

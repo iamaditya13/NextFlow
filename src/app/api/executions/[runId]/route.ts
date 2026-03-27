@@ -41,3 +41,5 @@ export async function GET(
     return Response.json({ error: 'Server error' }, { status: 500 })
   }
 }
+
+export const runtime = 'nodejs'

@@ -75,3 +75,5 @@ export async function POST(req: NextRequest) {
     return error('Internal server error', 500)
   }
 }
+
+export const runtime = 'nodejs'

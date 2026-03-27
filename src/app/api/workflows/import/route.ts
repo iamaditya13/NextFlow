@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { ImportWorkflowSchema } from '@/lib/validations'
 import { authenticateUser, success, error, zodError } from '@/lib/apiHelpers'
@@ -44,3 +44,5 @@ export async function POST(req: NextRequest) {
     return error('Internal server error', 500)
   }
 }
+
+export const runtime = 'nodejs'

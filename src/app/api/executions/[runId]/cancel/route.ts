@@ -48,3 +48,5 @@ export async function POST(
     return Response.json({ error: 'Server error' }, { status: 500 })
   }
 }
+
+export const runtime = 'nodejs'

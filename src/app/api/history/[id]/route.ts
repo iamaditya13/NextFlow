@@ -67,3 +67,5 @@ export async function PUT(
     return error('Internal server error', 500)
   }
 }
+
+export const runtime = 'nodejs'

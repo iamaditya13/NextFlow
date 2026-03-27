@@ -29,3 +29,5 @@ export async function GET(req: NextRequest) {
     return error('Internal server error', 500)
   }
 }
+
+export const runtime = 'nodejs'
