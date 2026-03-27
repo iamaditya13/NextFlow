@@ -102,7 +102,6 @@ export default function ImagePage() {
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
-          fontFamily: 'Inter, -apple-system, sans-serif',
         }}
       >
         {/* Model selector — top-left, absolute */}

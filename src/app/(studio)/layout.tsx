@@ -15,7 +15,6 @@ export default async function StudioLayout({
         height: '100vh',
         background: '#101010',
         overflow: 'hidden',
-        fontFamily: 'Inter, -apple-system, sans-serif',
       }}
     >
       {children}

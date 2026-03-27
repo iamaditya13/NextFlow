@@ -36,7 +36,7 @@ nav.text-xbase {
   background-color: var(--color-bg-nav);
   width: 832px; /* full-width container */
   height: 46px;
-  font-family: "Suisse Intl", ui-sans-serif, system-ui;
+  font-family: var(--font-suisse-intl), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 15px;
   line-height: 22.5px;
   font-weight: 400;
@@ -46,7 +46,7 @@ nav.text-xbase {
 
 /* Nav links */
 a.nav-link {
-  font-family: "Suisse Intl", ui-sans-serif, system-ui;
+  font-family: var(--font-suisse-intl), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 15px;
   line-height: 22.5px;
   font-weight: 400;
@@ -58,7 +58,7 @@ a.nav-link {
 
 /* Features dropdown button */
 button.nav-features-button {
-  font-family: "Suisse Intl";
+  font-family: var(--font-suisse-intl), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 15px;
   line-height: 22.5px;
   font-weight: 400;
@@ -71,7 +71,7 @@ button.nav-features-button {
 .hero-section {
   background-color: var(--color-bg-primary); /* #000000 outer */
   /* video element sits below with bg #101010 */
-  font-family: "Suisse Intl";
+  font-family: var(--font-suisse-intl), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 /* Hero body text / container */
@@ -92,14 +92,14 @@ video.h-full {
 /* --- Typography Scale --- */
 /* Headline (hero) */
 .hero-headline {
-  font-family: "Suisse Intl";
+  font-family: var(--font-suisse-intl), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 700; /* bold */
   color: #FAFAFA;
 }
 
 /* Subtext / body */
 .hero-subtext {
-  font-family: "Suisse Intl";
+  font-family: var(--font-suisse-intl), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;

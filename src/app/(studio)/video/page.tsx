@@ -50,7 +50,6 @@ export default function VideoPage() {
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
-          fontFamily: 'Inter, -apple-system, sans-serif',
         }}
       >
         {/* Model selector — top-left */}
