@@ -1,0 +1,156 @@
+'use client'
+
+import { useRef, useState } from 'react'
+import { Plus, MousePointer2, Hand, Scissors, LayoutGrid, Keyboard } from 'lucide-react'
+
+type CanvasMode = 'select' | 'pan' | 'scissor' | 'connect'
+
+interface ToolDef {
+  icon: React.ElementType
+  label: string
+  shortcut: string
+  mode: CanvasMode | 'new' | 'presets'
+}
+
+const TOOLS: ToolDef[] = [
+  { icon: Plus,          label: 'New Node',        shortcut: 'N',      mode: 'new' },
+  { icon: MousePointer2, label: 'Select',          shortcut: 'Drag',   mode: 'select' },
+  { icon: Hand,          label: 'Pan',             shortcut: '⌘ Drag', mode: 'pan' },
+  { icon: Scissors,      label: 'Cut Connections', shortcut: 'X Drag', mode: 'scissor' },
+  { icon: LayoutGrid,    label: 'Presets',         shortcut: '',       mode: 'presets' },
+]
+
+interface CanvasBottomToolbarProps {
+  onAddNode?: () => void
+  onPresets?: () => void
+  canvasMode?: CanvasMode
+  onModeChange?: (mode: CanvasMode) => void
+  zoom?: number
+  onToggleShortcuts?: () => void
+}
+
+export function CanvasBottomToolbar({
+  onAddNode,
+  onPresets,
+  canvasMode = 'select',
+  onModeChange,
+  zoom = 1,
+  onToggleShortcuts,
+}: CanvasBottomToolbarProps) {
+  const [tooltip, setTooltip] = useState<{
+    label: string
+    shortcut: string
+    rect: DOMRect
+  } | null>(null)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleMouseEnter(
+    e: React.MouseEvent<HTMLButtonElement>,
+    label: string,
+    shortcut: string
+  ) {
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    const rect = e.currentTarget.getBoundingClientRect()
+    showTimer.current = setTimeout(() => {
+      setTooltip({ label, shortcut, rect })
+    }, 200)
+  }
+
+  function handleMouseLeave() {
+    if (showTimer.current) clearTimeout(showTimer.current)
+    hideTimer.current = setTimeout(() => setTooltip(null), 80)
+  }
+
+  function handleToolClick(tool: ToolDef) {
+    if (tool.mode === 'new') {
+      onAddNode?.()
+    } else if (tool.mode === 'presets') {
+      onPresets?.()
+    } else {
+      onModeChange?.(tool.mode as CanvasMode)
+    }
+  }
+
+  const zoomPct = Math.round(zoom * 100)
+
+  return (
+    <>
+      {/* Floating tooltip */}
+      {tooltip && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: tooltip.rect.left + tooltip.rect.width / 2,
+            top: tooltip.rect.top - 8,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px]
+                        bg-[#1a1a1a] text-white border border-white/10
+                        shadow-lg whitespace-nowrap"
+          >
+            <span>{tooltip.label}</span>
+            {tooltip.shortcut && (
+              <span className="px-1 py-0.5 rounded bg-white/10 text-[10px] font-mono">
+                {tooltip.shortcut}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Bottom-center toolbar */}
+      <div className="nf-canvas-toolbar">
+        {TOOLS.map((tool) => {
+          const Icon = tool.icon
+          const isActive =
+            tool.mode !== 'new' &&
+            tool.mode !== 'presets' &&
+            canvasMode === tool.mode
+          return (
+            <button
+              key={tool.label}
+              type="button"
+              className={`nf-canvas-toolbar__item ${isActive ? 'nf-canvas-toolbar__item--active' : ''}`}
+              onClick={() => handleToolClick(tool)}
+              onMouseEnter={(e) => handleMouseEnter(e, tool.label, tool.shortcut)}
+              onMouseLeave={handleMouseLeave}
+            >
+              <Icon size={20} />
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Bottom-right: zoom + keyboard shortcuts */}
+      <div
+        className="absolute bottom-4 right-4 flex items-center gap-2 z-10"
+      >
+        <div
+          className="h-8 px-3 flex items-center rounded-lg text-[12px] font-medium
+                     dark:bg-[#202020] bg-white
+                     dark:text-[#a3a3a3] text-gray-600
+                     dark:border-white/[0.06] border-black/[0.08] border
+                     shadow-sm select-none"
+        >
+          {zoomPct}%
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggleShortcuts}
+          className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-[12px] font-medium
+                     dark:bg-[#202020] bg-white
+                     dark:text-[#a3a3a3] text-gray-600
+                     dark:border-white/[0.06] border-black/[0.08] border
+                     shadow-sm hover:opacity-80 transition-opacity"
+        >
+          <Keyboard size={14} />
+          <span>Keyboard shortcuts</span>
+        </button>
+      </div>
+    </>
+  )
+}

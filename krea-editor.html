@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Krea AI - Node Editor</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f0f0;--canvas-bg:#e8e8e8;--node-bg:#ffffff;--node-border:#e2e2e2;
+  --text-primary:#1a1a1a;--text-secondary:#6b6b6b;--text-muted:#9a9a9a;
+  --input-bg:#f7f7f7;--dot-pattern:rgba(0,0,0,0.08);
+  --topbar-bg:#ffffff;--topbar-border:#e2e2e2;--toolbar-bg:#ffffff;
+  --shadow:rgba(0,0,0,0.1);--modal-overlay:rgba(0,0,0,0.4);
+}
+body.dark{
+  --bg:#1a1a1a;--canvas-bg:#1a1a1a;--node-bg:#252525;--node-border:#333333;
+  --text-primary:#f0f0f0;--text-secondary:#9a9a9a;--text-muted:#666666;
+  --input-bg:#1e1e1e;--dot-pattern:rgba(255,255,255,0.06);
+  --topbar-bg:#1e1e1e;--topbar-border:#333;--toolbar-bg:#252525;
+  --shadow:rgba(0,0,0,0.4);--modal-overlay:rgba(0,0,0,0.7);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text-primary);overflow:hidden;height:100vh;width:100vw;user-select:none}
+
+/* TOPBAR */
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:52px;z-index:100;
+  background:var(--topbar-bg);border-bottom:1px solid var(--topbar-border);
+  display:flex;align-items:center;padding:0 12px;gap:8px;
+}
+#topbar .left{display:flex;align-items:center;gap:6px;flex:1}
+#topbar .right{display:flex;align-items:center;gap:6px}
+.icon-btn{
+  width:32px;height:32px;border:none;background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;border-radius:7px;
+  color:var(--text-secondary);transition:background 0.15s;font-size:14px;
+}
+.icon-btn:hover{background:var(--input-bg)}
+.logo-btn{display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;padding:4px 8px;border-radius:7px}
+.logo-btn:hover{background:var(--input-bg)}
+#title-input{
+  border:none;background:transparent;font-size:14px;font-weight:500;
+  color:var(--text-primary);outline:none;width:120px;cursor:pointer;
+}
+#title-input:focus{cursor:text;background:var(--input-bg);padding:2px 6px;border-radius:5px}
+.topbar-btn{
+  display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--node-border);background:var(--topbar-bg);
+  cursor:pointer;font-size:13px;font-weight:500;color:var(--text-primary);
+  transition:background 0.15s;
+}
+.topbar-btn:hover{background:var(--input-bg)}
+.topbar-btn.primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+body.dark .topbar-btn.primary{background:#f0f0f0;color:#1a1a1a}
+.topbar-btn.primary:hover{opacity:0.85}
+#theme-toggle{width:32px;height:32px;border:1px solid var(--node-border);border-radius:8px;background:var(--topbar-bg)}
+
+/* CANVAS */
+#canvas-wrap{position:fixed;top:52px;left:0;right:0;bottom:0;overflow:hidden;background:var(--canvas-bg)}
+#canvas-wrap.pan-mode{cursor:grab}
+#canvas-wrap.pan-mode:active{cursor:grabbing}
+#canvas-wrap.cut-mode{cursor:crosshair}
+#canvas{
+  position:absolute;top:0;left:0;width:4000px;height:4000px;
+  transform-origin:0 0;
+  background-image:radial-gradient(circle,var(--dot-pattern) 1px,transparent 1px);
+  background-size:24px 24px;
+}
+
+/* SVG overlay */
+#svg-overlay{position:absolute;top:0;left:0;width:4000px;height:4000px;pointer-events:none;overflow:visible;z-index:5}
+.cut-svg{position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:200}
+
+/* NODES */
+.node{
+  position:absolute;width:230px;background:var(--node-bg);border:1.5px solid var(--node-border);
+  border-radius:12px;z-index:10;transition:box-shadow 0.15s;cursor:default;
+  box-shadow:0 2px 8px var(--shadow);
+}
+.node:hover{box-shadow:0 4px 16px var(--shadow)}
+.node.selected{border-color:#5b9cf6}
+.node.selected.type-llm{border-color:#f5a623}
+.node.selected.type-video{border-color:#4caf7d}
+.node.running{animation:breathe 1.5s ease-in-out infinite}
+@keyframes breathe{
+  0%,100%{box-shadow:0 0 0 0px rgba(107,107,255,0.4)}
+  50%{box-shadow:0 0 0 8px rgba(107,107,255,0.12)}
+}
+@keyframes flowDash{to{stroke-dashoffset:-12}}
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-4px)}
+  75%{transform:translateX(4px)}
+}
+.node-above{
+  position:absolute;top:-36px;left:0;display:flex;gap:6px;align-items:center;
+  opacity:0;transition:opacity 0.15s;pointer-events:none;
+}
+.node:hover .node-above,.node.selected .node-above{opacity:1;pointer-events:all}
+.run-btn{
+  display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:7px;
+  background:#1a1a1a;color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:500;
+  white-space:nowrap;
+}
+body.dark .run-btn{background:#f0f0f0;color:#1a1a1a}
+.run-btn.stop{background:#6b6bff;color:#fff}
+.run-btn:hover{opacity:0.85}
+
+/* Node header */
+.node-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px 6px;font-size:12px;
+}
+.node-title{font-weight:600;color:var(--text-primary);font-size:12px}
+.node-meta{display:flex;align-items:center;gap:4px;color:var(--text-muted);font-size:11px}
+.cu-badge{font-size:11px;color:var(--text-muted)}
+.info-btn{width:16px;height:16px;border-radius:50%;border:1px solid var(--node-border);background:transparent;cursor:pointer;font-size:10px;color:var(--text-muted);display:flex;align-items:center;justify-content:center}
+
+/* Image area */
+.node-image-wrap{position:relative;margin:0 8px;border-radius:8px;overflow:visible}
+.node-image-wrap img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
+.node-image-placeholder{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#e0e0e0,#c0c0c0);border-radius:8px}
+body.dark .node-image-placeholder{background:linear-gradient(135deg,#333,#222)}
+.image-label{font-size:11px;color:var(--text-muted);text-align:right;padding:3px 4px 4px}
+
+/* Output dot on image right edge */
+.dot-output{
+  position:absolute;right:-5px;top:50%;transform:translateY(-50%);
+  width:10px;height:10px;border-radius:50%;cursor:crosshair;z-index:20;
+  border:2px solid var(--node-bg);
+}
+
+/* Fields */
+.node-fields{padding:2px 10px 6px}
+.field-row{
+  display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px;
+  color:var(--text-primary);position:relative;
+}
+.field-label{color:var(--text-secondary);font-size:12px;min-width:52px}
+.field-value{color:var(--text-muted);font-size:12px;flex:1}
+.dot-input{
+  position:absolute;left:-15px;top:50%;transform:translateY(-50%);
+  width:10px;height:10px;border-radius:50%;cursor:crosshair;z-index:20;
+  border:2px solid var(--node-bg);
+}
+.dot-highlight{box-shadow:0 0 0 3px rgba(91,156,246,0.4)}
+
+/* Model row */
+.model-row{display:flex;align-items:center;gap:6px;padding:4px 10px;position:relative}
+.model-select{
+  flex:1;border:none;background:transparent;font-size:12px;color:var(--text-primary);
+  cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a9a9a'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 4px center;padding-right:16px;
+}
+.model-select option{background:var(--node-bg);color:var(--text-primary)}
+.model-icon{font-size:11px;color:var(--text-muted)}
+
+/* Prompt */
+.prompt-row{padding:2px 10px 4px;position:relative}
+.prompt-label-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:12px;color:var(--text-secondary)}
+.prompt-edit-btn{background:transparent;border:none;cursor:pointer;color:var(--text-muted);font-size:12px;padding:1px 3px}
+.prompt-textarea{
+  width:100%;border:1px solid var(--node-border);border-radius:7px;background:var(--input-bg);
+  color:var(--text-primary);font-size:12px;padding:6px 8px;resize:none;outline:none;
+  min-height:70px;font-family:inherit;
+}
+.prompt-textarea::placeholder{color:var(--text-muted)}
+.prompt-textarea:focus{border-color:#5b9cf6}
+
+/* Settings */
+.settings-section{border-top:1px solid var(--node-border);margin-top:2px}
+.settings-toggle{
+  display:flex;align-items:center;gap:5px;padding:7px 10px;cursor:pointer;
+  font-size:12px;color:var(--text-secondary);background:transparent;border:none;
+  width:100%;text-align:left;
+}
+.settings-toggle .chevron{transition:transform 0.2s;display:inline-block;font-size:10px}
+.settings-toggle.collapsed .chevron{transform:rotate(-90deg)}
+.settings-rows{overflow:hidden;max-height:500px;transition:max-height 0.25s ease}
+.settings-rows.collapsed{max-height:0}
+.setting-row{
+  display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;
+  color:var(--text-primary);position:relative;min-height:28px;
+}
+.setting-label{min-width:70px;color:var(--text-secondary);font-size:12px}
+.setting-value{color:var(--text-muted);font-size:12px;flex:1}
+.setting-action{
+  margin-left:auto;color:var(--text-muted);font-size:11px;cursor:pointer;
+  background:transparent;border:none;display:flex;align-items:center;gap:3px;
+}
+.setting-action:hover{color:var(--text-primary)}
+.toggle-switch{
+  width:32px;height:18px;background:#ccc;border-radius:9px;cursor:pointer;
+  position:relative;transition:background 0.2s;flex-shrink:0;
+}
+.toggle-switch.on{background:#5b9cf6}
+.toggle-switch::after{
+  content:'';position:absolute;width:14px;height:14px;background:#fff;
+  border-radius:50%;top:2px;left:2px;transition:left 0.2s;
+}
+.toggle-switch.on::after{left:16px}
+.aspect-select,.res-select{
+  border:1px solid var(--node-border);background:var(--input-bg);color:var(--text-primary);
+  font-size:12px;border-radius:5px;padding:2px 16px 2px 6px;cursor:pointer;outline:none;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a9a9a'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 4px center;
+}
+.seed-input{
+  flex:1;border:1px solid var(--node-border);background:var(--input-bg);
+  color:var(--text-muted);font-size:12px;border-radius:5px;padding:2px 6px;outline:none;
+}
+.seed-input::placeholder{color:var(--text-muted)}
+.copy-btn{background:transparent;border:none;cursor:pointer;color:var(--text-muted);font-size:12px;padding:2px}
+.copy-btn:hover{color:var(--text-primary)}
+
+/* Receiving tag */
+.receiving-tag{
+  display:flex;align-items:center;gap:5px;background:var(--input-bg);
+  border:1px solid var(--node-border);border-radius:5px;padding:2px 6px;
+  font-size:11px;color:var(--text-secondary);
+}
+.receiving-thumb{width:14px;height:14px;border-radius:3px;background:#888;flex-shrink:0}
+.receiving-x{background:transparent;border:none;cursor:pointer;color:var(--text-muted);font-size:12px;margin-left:2px;padding:0 2px}
+.strength-input{
+  flex:1;border:1px solid var(--node-border);background:var(--input-bg);
+  color:var(--text-primary);font-size:12px;border-radius:5px;padding:2px 6px;outline:none;
+  text-align:right;
+}
+
+/* BOTTOM TOOLBAR */
+#toolbar{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:2px;padding:5px;
+  background:var(--toolbar-bg);border:1px solid var(--node-border);
+  border-radius:12px;box-shadow:0 4px 16px var(--shadow);
+  backdrop-filter:blur(8px);z-index:100;
+}
+.tool-btn{
+  width:36px;height:36px;border:none;background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;border-radius:8px;
+  color:var(--text-secondary);transition:background 0.15s;font-size:16px;
+}
+.tool-btn:hover{background:var(--input-bg)}
+.tool-btn.active{background:var(--input-bg);color:var(--text-primary)}
+.tool-separator{width:1px;height:24px;background:var(--node-border);margin:0 2px}
+
+/* Bottom left */
+#bottom-left{
+  position:fixed;bottom:20px;left:20px;display:flex;gap:6px;z-index:100;
+}
+.undo-redo-btn{
+  width:36px;height:36px;border:1px solid var(--node-border);background:var(--toolbar-bg);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  border-radius:9px;color:var(--text-secondary);font-size:16px;
+  transition:background 0.15s,opacity 0.15s;
+}
+.undo-redo-btn:hover{background:var(--input-bg)}
+.undo-redo-btn:disabled{opacity:0.4;cursor:not-allowed}
+
+/* Bottom right */
+#bottom-right{
+  position:fixed;bottom:20px;right:20px;display:flex;gap:6px;align-items:center;z-index:100;
+}
+.zoom-pill{
+  padding:6px 12px;border:1px solid var(--node-border);background:var(--toolbar-bg);
+  border-radius:9px;font-size:12px;color:var(--text-secondary);cursor:pointer;
+  backdrop-filter:blur(8px);
+}
+.kbd-btn{
+  display:flex;align-items:center;gap:6px;padding:6px 12px;
+  border:1px solid var(--node-border);background:var(--toolbar-bg);
+  border-radius:9px;font-size:12px;color:var(--text-secondary);cursor:pointer;
+  backdrop-filter:blur(8px);
+}
+.kbd-btn:hover{background:var(--input-bg)}
+
+/* TOOLTIP */
+#tooltip{
+  position:fixed;z-index:9999;pointer-events:none;opacity:0;transition:opacity 0.1s;
+  display:flex;align-items:center;gap:5px;padding:5px 10px;
+  background:#1a1a1a;color:#fff;border-radius:7px;font-size:12px;white-space:nowrap;
+}
+body.dark #tooltip{background:#f0f0f0;color:#1a1a1a}
+.tooltip-shortcut{
+  background:rgba(255,255,255,0.2);border-radius:4px;padding:1px 5px;font-size:11px;
+}
+body.dark .tooltip-shortcut{background:rgba(0,0,0,0.15)}
+
+/* MODALS */
+.modal-overlay{
+  position:fixed;inset:0;background:var(--modal-overlay);z-index:500;
+  display:flex;align-items:center;justify-content:center;
+}
+.modal-overlay.hidden{display:none}
+.modal{
+  background:var(--node-bg);border-radius:16px;padding:28px;
+  max-width:680px;width:90vw;max-height:80vh;overflow-y:auto;
+  position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.2);
+}
+.modal-title{font-size:18px;font-weight:600;color:var(--text-primary);margin-bottom:4px}
+.modal-subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+.modal-close{
+  position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:50%;
+  border:1px solid var(--node-border);background:var(--input-bg);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:14px;color:var(--text-secondary);
+}
+.modal-close:hover{background:var(--node-border)}
+
+/* Presets grid */
+.presets-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.preset-card{
+  border:1px solid var(--node-border);border-radius:10px;overflow:hidden;
+  cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;
+}
+.preset-card:hover{border-color:#5b9cf6;box-shadow:0 2px 12px rgba(91,156,246,0.15)}
+.preset-thumb{
+  width:100%;aspect-ratio:16/10;background:var(--input-bg);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;font-size:24px;
+}
+.preset-badge{
+  position:absolute;top:6px;right:6px;padding:2px 7px;border-radius:5px;
+  font-size:10px;font-weight:600;
+}
+.badge-pro{background:#6b6bff;color:#fff}
+.badge-new{background:#e8f4ff;color:#5b9cf6;border:1px solid #5b9cf6}
+.preset-body{padding:8px 10px}
+.preset-name{font-size:13px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:5px}
+.preset-desc{font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.4}
+
+/* Keyboard shortcuts modal */
+.kbd-modal .modal{max-width:520px}
+.shortcut-section{margin-bottom:16px}
+.shortcut-section-title{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px}
+.shortcut-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 0;border-bottom:1px solid var(--node-border);
+  font-size:13px;color:var(--text-secondary);
+}
+.shortcut-row:last-child{border-bottom:none}
+.shortcut-keys{display:flex;align-items:center;gap:4px}
+.kbd{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:2px 7px;background:var(--input-bg);border:1px solid var(--node-border);
+  border-radius:5px;font-size:11px;color:var(--text-primary);font-weight:500;
+  box-shadow:0 1px 0 var(--node-border);min-width:22px;
+}
+
+/* Context menu */
+#context-menu{
+  position:fixed;z-index:300;background:var(--node-bg);border:1px solid var(--node-border);
+  border-radius:10px;padding:4px;box-shadow:0 4px 20px var(--shadow);min-width:140px;
+}
+#context-menu.hidden{display:none}
+.ctx-item{
+  display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:7px;
+  cursor:pointer;font-size:13px;color:var(--text-primary);
+}
+.ctx-item:hover{background:var(--input-bg)}
+.ctx-item.danger:hover{background:#fff0f0;color:#e05252}
+
+/* Selection box */
+#selection-box{
+  position:absolute;border:1.5px dashed #5b9cf6;background:rgba(91,156,246,0.06);
+  pointer-events:none;z-index:15;display:none;
+}
+
+/* Group container */
+.node-group{
+  position:absolute;border:2px dashed #5b9cf6;background:rgba(91,156,246,0.05);
+  border-radius:12px;z-index:1;
+}
+.group-label{
+  position:absolute;top:-22px;left:8px;font-size:11px;color:#5b9cf6;font-weight:600;
+  background:var(--canvas-bg);padding:0 4px;
+}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:#1a1a1a;color:#fff;padding:8px 16px;border-radius:8px;
+  font-size:13px;opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:999;
+}
+body.dark #toast{background:#f0f0f0;color:#1a1a1a}
+#toast.show{opacity:1}
+
+/* Connection line hover */
+.conn-path{transition:stroke 0.15s}
+.conn-path:hover{stroke:rgba(107,107,255,0.8) !important}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="left">
+    <button class="icon-btn" id="sidebar-toggle" title="Toggle sidebar">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="1.5" rx="0.75" fill="currentColor"/><rect x="2" y="7.25" width="12" height="1.5" rx="0.75" fill="currentColor"/><rect x="2" y="11.5" width="12" height="1.5" rx="0.75" fill="currentColor"/></svg>
+    </button>
+    <button class="logo-btn">
+      <svg width="18" height="18" viewBox="0 0 18 18"><polygon points="9,1 17,9 9,17 1,9" fill="#5b9cf6"/></svg>
+    </button>
+    <input type="text" id="title-input" value="Untitled"/>
+    <button class="icon-btn" style="width:20px">
+      <svg width="10" height="6" viewBox="0 0 10 6"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg>
+    </button>
+  </div>
+  <div class="right">
+    <button class="icon-btn" id="theme-toggle" title="Toggle theme">
+      <svg id="theme-icon-sun" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3.05" y1="3.05" x2="4.46" y2="4.46"/><line x1="11.54" y1="11.54" x2="12.95" y2="12.95"/><line x1="12.95" y1="3.05" x2="11.54" y2="4.46"/><line x1="4.46" y1="11.54" x2="3.05" y2="12.95"/></g></svg>
+      <svg id="theme-icon-moon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display:none"><path d="M8 2a6 6 0 1 0 6 6A6 6 0 0 0 8 2zm-1 1.08A5 5 0 0 1 12.92 9 5 5 0 0 1 7 13.92 5 5 0 0 1 7 3.08z"/></svg>
+    </button>
+    <button class="topbar-btn" id="share-btn">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="11" cy="2.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="11.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="3" cy="7" r="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="4.3" y1="6.2" x2="9.7" y2="3.3" stroke="currentColor" stroke-width="1.3"/><line x1="4.3" y1="7.8" x2="9.7" y2="10.7" stroke="currentColor" stroke-width="1.3"/></svg>
+      Share
+    </button>
+    <button class="topbar-btn primary" id="turn-app-btn">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.3"/><line x1="4" y1="3" x2="4" y2="11" stroke="currentColor" stroke-width="1.3"/></svg>
+      Turn workflow into app
+    </button>
+    <button class="icon-btn">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h10v2L8 8v4l-2-1V8L2 4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- CANVAS -->
+<div id="canvas-wrap">
+  <div id="canvas">
+    <svg id="svg-overlay"></svg>
+    <div id="selection-box"></div>
+  </div>
+</div>
+
+<!-- CUT SVG overlay (screen-space) -->
+<svg id="cut-svg" class="cut-svg"></svg>
+
+<!-- BOTTOM LEFT -->
+<div id="bottom-left">
+  <button class="undo-redo-btn" id="undo-btn" disabled title="Undo">↩</button>
+  <button class="undo-redo-btn" id="redo-btn" disabled title="Redo">↪</button>
+</div>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <button class="tool-btn" id="tool-new" data-tooltip="New Node" data-shortcut="N">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="8" y1="2" x2="8" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <button class="tool-btn active" id="tool-select" data-tooltip="Draw Selection" data-shortcut="Drag">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 2l10 6-5 1-2 5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/></svg>
+  </button>
+  <button class="tool-btn" id="tool-pan" data-tooltip="Pan" data-shortcut="⌘ Drag">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v2M8 12v2M2 8h2M12 8h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/></svg>
+  </button>
+  <button class="tool-btn" id="tool-cut" data-tooltip="Cut Connections" data-shortcut="X Drag">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="12" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="4" cy="4" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M6 11L12 5M6 5l2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+  </button>
+  <button class="tool-btn" id="tool-presets" data-tooltip="Presets">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.3"/></svg>
+  </button>
+</div>
+
+<!-- BOTTOM RIGHT -->
+<div id="bottom-right">
+  <div class="zoom-pill" id="zoom-display">100%</div>
+  <button class="kbd-btn" id="kbd-shortcuts-btn">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.3"/><rect x="3" y="5.5" width="2" height="1.5" rx="0.5" fill="currentColor"/><rect x="6" y="5.5" width="2" height="1.5" rx="0.5" fill="currentColor"/><rect x="9" y="5.5" width="2" height="1.5" rx="0.5" fill="currentColor"/><rect x="4.5" y="8" width="5" height="1.5" rx="0.5" fill="currentColor"/></svg>
+    Keyboard shortcuts
+  </button>
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"></div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- CONTEXT MENU -->
+<div id="context-menu" class="hidden"></div>
+
+<!-- PRESETS MODAL -->
+<div id="presets-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <button class="modal-close" id="close-presets">✕</button>
+    <div class="modal-title">Presets</div>
+    <div class="modal-subtitle">Start with a template to get up and running quickly.</div>
+    <div class="presets-grid">
+      <div class="preset-card" data-preset="image-gen">
+        <div class="preset-thumb">🖼️</div>
+        <div class="preset-body">
+          <div class="preset-name">Image Generator</div>
+          <div class="preset-desc">Simple text to Image Generation with Krea 1</div>
+        </div>
+      </div>
+      <div class="preset-card" data-preset="video-gen">
+        <div class="preset-thumb">🎬</div>
+        <div class="preset-body">
+          <div class="preset-name">Video Generator</div>
+          <div class="preset-desc">Simple Video Generation with Wan 2.1</div>
+        </div>
+      </div>
+      <div class="preset-card" data-preset="upscale">
+        <div class="preset-thumb">🔍</div>
+        <div class="preset-body">
+          <div class="preset-name">8K Upscaling &amp; Enhancer</div>
+          <div class="preset-desc">Upscaling a low resolution image to 8K</div>
+        </div>
+      </div>
+      <div class="preset-card" data-preset="llm-caption">
+        <div class="preset-thumb" style="position:relative">🤖<span class="preset-badge badge-pro" style="position:absolute;top:6px;right:6px">PRO</span></div>
+        <div class="preset-body">
+          <div class="preset-name">LLM Image Captioning</div>
+          <div class="preset-desc">Generate a prompt from an image with GPT-5</div>
+        </div>
+      </div>
+      <div class="preset-card" data-preset="prompt-workflow">
+        <div class="preset-thumb" style="position:relative">✨<span class="preset-badge badge-pro" style="position:absolute;top:6px;right:6px">PRO</span></div>
+        <div class="preset-body">
+          <div class="preset-name">Prompt to Workflow <span class="badge-new" style="font-size:10px;padding:1px 5px;border-radius:4px;background:#e8f4ff;color:#5b9cf6;font-weight:600">NEW</span></div>
+          <div class="preset-desc">Generate a workflow from a prompt.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KEYBOARD SHORTCUTS MODAL -->
+<div id="kbd-modal" class="modal-overlay hidden kbd-modal">
+  <div class="modal">
+    <button class="modal-close" id="close-kbd">✕</button>
+    <div class="modal-title">Keyboard Shortcuts</div>
+    <div class="modal-subtitle">Quickly navigate and create with these shortcuts.</div>
+    <div class="shortcut-section">
+      <div class="shortcut-section-title">General</div>
+      <div class="shortcut-row"><span>Undo</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">Z</span></span></div>
+      <div class="shortcut-row"><span>Redo</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">Shift</span><span class="kbd">Z</span></span></div>
+      <div class="shortcut-row"><span>Save</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">S</span></span></div>
+      <div class="shortcut-row"><span>Select all</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">A</span></span></div>
+      <div class="shortcut-row"><span>Deselect all</span><span class="shortcut-keys"><span class="kbd">Esc</span></span></div>
+      <div class="shortcut-row"><span>Multi-select</span><span class="shortcut-keys"><span class="kbd">Drag</span> or <span class="kbd">Shift</span><span class="kbd">Click</span> or <span class="kbd">Ctrl</span><span class="kbd">Drag</span></span></div>
+      <div class="shortcut-row"><span>Pan canvas</span><span class="shortcut-keys"><span class="kbd">Space</span><span class="kbd">Drag</span></span></div>
+      <div class="shortcut-row"><span>Cut edges (Scissor)</span><span class="shortcut-keys"><span class="kbd">X</span><span class="kbd">Drag</span> or <span class="kbd">Y</span><span class="kbd">Drag</span></span></div>
+    </div>
+    <div class="shortcut-section">
+      <div class="shortcut-section-title">Node Creation</div>
+      <div class="shortcut-row"><span>New node</span><span class="shortcut-keys"><span class="kbd">N</span></span></div>
+      <div class="shortcut-row"><span>Image node</span><span class="shortcut-keys"><span class="kbd">I</span></span></div>
+      <div class="shortcut-row"><span>Video node</span><span class="shortcut-keys"><span class="kbd">V</span></span></div>
+      <div class="shortcut-row"><span>LLM node</span><span class="shortcut-keys"><span class="kbd">L</span></span></div>
+      <div class="shortcut-row"><span>Enhance node</span><span class="shortcut-keys"><span class="kbd">E</span></span></div>
+    </div>
+    <div class="shortcut-section">
+      <div class="shortcut-section-title">Node Operations</div>
+      <div class="shortcut-row"><span>Copy</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">C</span></span></div>
+      <div class="shortcut-row"><span>Paste</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">V</span></span></div>
+      <div class="shortcut-row"><span>Duplicate</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">D</span></span></div>
+      <div class="shortcut-row"><span>Group nodes</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">G</span></span></div>
+      <div class="shortcut-row"><span>Ungroup nodes</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">Shift</span><span class="kbd">G</span></span></div>
+    </div>
+    <div class="shortcut-section">
+      <div class="shortcut-section-title">Execution</div>
+      <div class="shortcut-row"><span>Run workflow</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">Enter</span></span></div>
+      <div class="shortcut-row"><span>Run node</span><span class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd">R</span></span></div>
+      <div class="shortcut-row"><span>Stop</span><span class="shortcut-keys"><span class="kbd">Esc</span></span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let nodes = [];
+let connections = [];
+let selectedNodes = new Set();
+let activeTool = 'select';
+let zoom = 1, panX = 0, panY = 0;
+let isDark = false;
+let undoStack = [], redoStack = [];
+let nodeIdCounter = 1;
+let connIdCounter = 1;
+let workflowRunning = false;
+let groups = [];
+
+// Interaction state
+let draggingNode = null, dragOffX = 0, dragOffY = 0;
+let isPanning = false, panStartX = 0, panStartY = 0, panStartPanX = 0, panStartPanY = 0;
+let spaceHeld = false;
+let drawingConn = null; // {fromNodeId, fromPort, fromColor, startX, startY}
+let selectionDrag = null; // {startX, startY, rect}
+let cutDrag = null; // {startX, startY, x1,y1,x2,y2}
+
+const MODELS = ['Krea 1','Krea 2 (Beta)','Wan 2.1','GPT-4o','Flux Pro'];
+const NODE_WIDTH = 230;
+const PLACEHOLDER_IMAGES = [
+  'https://picsum.photos/seed/krea1/400/400',
+  'https://picsum.photos/seed/krea2/400/400',
+  'https://picsum.photos/seed/krea3/400/400',
+  'https://picsum.photos/seed/krea4/400/400',
+  'https://picsum.photos/seed/krea5/400/400',
+  'https://picsum.photos/seed/krea6/400/400',
+];
+
+// ============================================================
+// NODE FACTORY
+// ============================================================
+function createNode(type='image', x=200, y=100, model=null) {
+  const id = 'node-' + (nodeIdCounter++);
+  const defaultModels = {image:'Krea 1', video:'Wan 2.1', llm:'GPT-4o'};
+  const imgIdx = (nodeIdCounter % PLACEHOLDER_IMAGES.length);
+  return {
+    id, type,
+    x, y,
+    model: model || defaultModels[type] || 'Krea 1',
+    prompt: '',
+    image: PLACEHOLDER_IMAGES[imgIdx],
+    settingsOpen: true,
+    seed: '',
+    aspectRatio: '1:1',
+    resolution: '1K',
+    raw: false,
+    receivingImagePrompt: false,
+    receivingStrength: 80,
+    selected: false,
+  };
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  const n1 = createNode('image', 160, 80);
+  n1.image = PLACEHOLDER_IMAGES[0];
+  n1.prompt = 'A beautiful sunset over a calm ocean';
+
+  const n2 = createNode('image', 620, 80);
+  n2.image = PLACEHOLDER_IMAGES[1];
+  n2.prompt = 'A beautiful sunset over a calm ocean';
+  n2.receivingImagePrompt = true;
+  n2.receivingStrength = 80;
+
+  nodes.push(n1, n2);
+  selectedNodes.add(n1.id);
+
+  connections.push({
+    id: 'conn-' + (connIdCounter++),
+    fromNodeId: n1.id,
+    fromPort: 'image-output',
+    toNodeId: n2.id,
+    toPort: 'imagePrompt',
+    color: '#5b9cf6'
+  });
+
+  renderAll();
+  saveUndo();
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function renderAll() {
+  renderNodes();
+  renderConnections();
+  updateZoomDisplay();
+}
+
+function renderNodes() {
+  const canvas = document.getElementById('canvas');
+  // Remove old node elements
+  canvas.querySelectorAll('.node,.node-group').forEach(el => el.remove());
+
+  // Render groups
+  groups.forEach(g => {
+    const el = document.createElement('div');
+    el.className = 'node-group';
+    el.style.cssText = `left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px`;
+    const lbl = document.createElement('div');
+    lbl.className = 'group-label';
+    lbl.textContent = 'Group';
+    el.appendChild(lbl);
+    canvas.appendChild(el);
+  });
+
+  nodes.forEach(n => {
+    const el = buildNodeEl(n);
+    canvas.appendChild(el);
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+    if (selectedNodes.has(n.id)) el.classList.add('selected');
+  });
+}
+
+function buildNodeEl(n) {
+  const el = document.createElement('div');
+  el.className = 'node type-' + n.type;
+  el.dataset.nodeId = n.id;
+  if (selectedNodes.has(n.id)) el.classList.add('selected');
+
+  // Above-node controls
+  const above = document.createElement('div');
+  above.className = 'node-above';
+  if (workflowRunning) {
+    const stopBtn = document.createElement('button');
+    stopBtn.className = 'run-btn stop';
+    stopBtn.innerHTML = '⏸ Stop workflow';
+    stopBtn.addEventListener('click', e => { e.stopPropagation(); stopWorkflow(); });
+    above.appendChild(stopBtn);
+  }
+  const runBtn = document.createElement('button');
+  runBtn.className = 'run-btn';
+  runBtn.innerHTML = '▶ Run node';
+  runBtn.addEventListener('click', e => { e.stopPropagation(); runNode(n.id); });
+  above.appendChild(runBtn);
+  el.appendChild(above);
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'node-header';
+  header.innerHTML = `<span class="node-title">${n.model}</span>
+    <span class="node-meta"><span class="cu-badge">6 CU</span><button class="info-btn">ⓘ</button></span>`;
+  el.appendChild(header);
+
+  // Image wrap
+  const imgWrap = document.createElement('div');
+  imgWrap.className = 'node-image-wrap';
+  const img = document.createElement('img');
+  img.src = n.image;
+  img.alt = '';
+  img.draggable = false;
+  imgWrap.appendChild(img);
+
+  // Output dot
+  const outDot = document.createElement('div');
+  outDot.className = 'dot-output';
+  outDot.style.background = '#5b9cf6';
+  outDot.dataset.nodeId = n.id;
+  outDot.dataset.port = 'image-output';
+  outDot.dataset.color = '#5b9cf6';
+  outDot.dataset.isOutput = 'true';
+  imgWrap.appendChild(outDot);
+  el.appendChild(imgWrap);
+
+  const imgLabel = document.createElement('div');
+  imgLabel.className = 'image-label';
+  imgLabel.textContent = 'Image';
+  el.appendChild(imgLabel);
+
+  // Fields
+  const fields = document.createElement('div');
+  fields.className = 'node-fields';
+
+  // Model row
+  const modelRow = document.createElement('div');
+  modelRow.className = 'model-row';
+  modelRow.innerHTML = `<span class="field-label" style="color:var(--text-secondary);font-size:12px">Model</span>
+    <span class="model-icon">✦</span>`;
+  const modelSel = document.createElement('select');
+  modelSel.className = 'model-select';
+  MODELS.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    if (m === n.model) opt.selected = true;
+    modelSel.appendChild(opt);
+  });
+  modelSel.addEventListener('change', e => {
+    saveUndo();
+    n.model = e.target.value;
+    el.querySelector('.node-title').textContent = n.model;
+  });
+  modelRow.appendChild(modelSel);
+  fields.appendChild(modelRow);
+
+  // Prompt row
+  const promptRow = document.createElement('div');
+  promptRow.className = 'prompt-row';
+  promptRow.style.position = 'relative';
+  // Yellow dot on left
+  const promptDot = document.createElement('div');
+  promptDot.className = 'dot-input';
+  promptDot.style.cssText = 'left:-15px;background:#f5a623';
+  promptDot.dataset.nodeId = n.id;
+  promptDot.dataset.port = 'prompt';
+  promptDot.dataset.color = '#f5a623';
+  promptRow.appendChild(promptDot);
+
+  const promptLabelRow = document.createElement('div');
+  promptLabelRow.className = 'prompt-label-row';
+  promptLabelRow.innerHTML = `<span>Prompt</span><button class="prompt-edit-btn">✏</button>`;
+  promptRow.appendChild(promptLabelRow);
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'prompt-textarea';
+  textarea.placeholder = 'A beautiful sunset over a calm ocean';
+  textarea.value = n.prompt;
+  textarea.addEventListener('input', e => { n.prompt = e.target.value; });
+  textarea.addEventListener('mousedown', e => e.stopPropagation());
+  promptRow.appendChild(textarea);
+  fields.appendChild(promptRow);
+  el.appendChild(fields);
+
+  // Settings
+  const settingsSection = document.createElement('div');
+  settingsSection.className = 'settings-section';
+
+  const settingsToggle = document.createElement('button');
+  settingsToggle.className = 'settings-toggle' + (n.settingsOpen ? '' : ' collapsed');
+  settingsToggle.innerHTML = `<span class="chevron">›</span> Settings`;
+  settingsToggle.style.cssText = 'transform:' + (n.settingsOpen ? 'rotate(90deg)' : '');
+
+  const settingsRows = document.createElement('div');
+  settingsRows.className = 'settings-rows' + (n.settingsOpen ? '' : ' collapsed');
+
+  settingsToggle.addEventListener('click', e => {
+    e.stopPropagation();
+    n.settingsOpen = !n.settingsOpen;
+    settingsToggle.classList.toggle('collapsed', !n.settingsOpen);
+    settingsRows.classList.toggle('collapsed', !n.settingsOpen);
+    setTimeout(() => renderConnections(), 260);
+  });
+  settingsSection.appendChild(settingsToggle);
+
+  // Image Prompt row
+  const ipRow = document.createElement('div');
+  ipRow.className = 'setting-row';
+  const ipDot = document.createElement('div');
+  ipDot.className = 'dot-input';
+  ipDot.style.cssText = 'left:-15px;background:#5b9cf6';
+  ipDot.dataset.nodeId = n.id;
+  ipDot.dataset.port = 'imagePrompt';
+  ipDot.dataset.color = '#5b9cf6';
+  ipRow.appendChild(ipDot);
+
+  if (n.receivingImagePrompt) {
+    ipRow.innerHTML += `<span class="setting-label">Image Prompt</span>
+      <span class="receiving-tag">
+        <span class="receiving-thumb"></span>
+        <span>Receiving...</span>
+        <button class="receiving-x" data-node="${n.id}">✕</button>
+      </span>`;
+  } else {
+    ipRow.innerHTML += `<span class="setting-label">Image Prompt</span>
+      <span class="setting-value">Add file</span>
+      <button class="setting-action">↑</button>`;
+  }
+  settingsRows.appendChild(ipRow);
+
+  // Strength (if receiving)
+  if (n.receivingImagePrompt) {
+    const strengthRow = document.createElement('div');
+    strengthRow.className = 'setting-row';
+    const sDot = document.createElement('div');
+    sDot.className = 'dot-input';
+    sDot.style.cssText = 'left:-15px;background:#d44fbb';
+    strengthRow.appendChild(sDot);
+    strengthRow.innerHTML += `<span class="setting-label">Strength</span>
+      <input type="number" class="strength-input" value="${n.receivingStrength}" min="0" max="100">
+      <button class="copy-btn">↺</button>`;
+    const sInput = strengthRow.querySelector('.strength-input');
+    sInput.addEventListener('input', e => { n.receivingStrength = +e.target.value; });
+    sInput.addEventListener('mousedown', e => e.stopPropagation());
+    settingsRows.appendChild(strengthRow);
+  }
+
+  // Style row
+  const styleRow = document.createElement('div');
+  styleRow.className = 'setting-row';
+  const styleDot = document.createElement('div');
+  styleDot.className = 'dot-input';
+  styleDot.style.cssText = 'left:-15px;background:#e05252';
+  styleDot.dataset.nodeId = n.id;
+  styleDot.dataset.port = 'style';
+  styleDot.dataset.color = '#e05252';
+  styleRow.appendChild(styleDot);
+  styleRow.innerHTML += `<span class="setting-label">Style</span><span class="setting-value">Select style</span><button class="setting-action">🔍</button>`;
+  settingsRows.appendChild(styleRow);
+
+  // Style Image row
+  const siRow = document.createElement('div');
+  siRow.className = 'setting-row';
+  const siDot = document.createElement('div');
+  siDot.className = 'dot-input';
+  siDot.style.cssText = 'left:-15px;background:#5b9cf6';
+  siDot.dataset.nodeId = n.id;
+  siDot.dataset.port = 'styleImage';
+  siDot.dataset.color = '#5b9cf6';
+  siRow.appendChild(siDot);
+  siRow.innerHTML += `<span class="setting-label">Style Image</span><span class="setting-value">Add file</span><button class="setting-action">↑</button>`;
+  settingsRows.appendChild(siRow);
+
+  // Raw row
+  const rawRow = document.createElement('div');
+  rawRow.className = 'setting-row';
+  rawRow.innerHTML = `<span class="setting-label">Raw</span>`;
+  const toggleEl = document.createElement('div');
+  toggleEl.className = 'toggle-switch' + (n.raw ? ' on' : '');
+  toggleEl.style.marginLeft = 'auto';
+  toggleEl.addEventListener('click', e => {
+    e.stopPropagation();
+    n.raw = !n.raw;
+    toggleEl.classList.toggle('on', n.raw);
+  });
+  rawRow.appendChild(toggleEl);
+  settingsRows.appendChild(rawRow);
+
+  // Seed row
+  const seedRow = document.createElement('div');
+  seedRow.className = 'setting-row';
+  const seedDot = document.createElement('div');
+  seedDot.className = 'dot-input';
+  seedDot.style.cssText = 'left:-15px;background:#d44fbb';
+  seedDot.dataset.nodeId = n.id;
+  seedDot.dataset.port = 'seed';
+  seedDot.dataset.color = '#d44fbb';
+  seedRow.appendChild(seedDot);
+  seedRow.innerHTML += `<span class="setting-label">Seed</span>`;
+  const seedInput = document.createElement('input');
+  seedInput.type = 'text';
+  seedInput.className = 'seed-input';
+  seedInput.placeholder = 'Random';
+  seedInput.value = n.seed;
+  seedInput.addEventListener('input', e => { n.seed = e.target.value; });
+  seedInput.addEventListener('mousedown', e => e.stopPropagation());
+  seedRow.appendChild(seedInput);
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'copy-btn';
+  copyBtn.textContent = '⎘';
+  copyBtn.addEventListener('click', e => { e.stopPropagation(); navigator.clipboard.writeText(n.seed || Math.floor(Math.random()*1e8).toString()); });
+  seedRow.appendChild(copyBtn);
+  settingsRows.appendChild(seedRow);
+
+  // Aspect ratio row
+  const arRow = document.createElement('div');
+  arRow.className = 'setting-row';
+  arRow.innerHTML = `<span class="setting-label">Aspect Ratio</span>`;
+  const arSel = document.createElement('select');
+  arSel.className = 'aspect-select';
+  arSel.style.marginLeft='auto';
+  ['1:1','16:9','9:16','4:3','3:2'].forEach(r => {
+    const o = document.createElement('option');
+    o.value=r; o.textContent=r;
+    if(r===n.aspectRatio) o.selected=true;
+    arSel.appendChild(o);
+  });
+  arSel.addEventListener('change', e => { n.aspectRatio = e.target.value; });
+  arRow.appendChild(arSel);
+  settingsRows.appendChild(arRow);
+
+  // Resolution row
+  const resRow = document.createElement('div');
+  resRow.className = 'setting-row';
+  resRow.innerHTML = `<span class="setting-label">Resolution</span>`;
+  const resSel = document.createElement('select');
+  resSel.className = 'res-select';
+  resSel.style.marginLeft='auto';
+  ['1K','2K','4K','8K'].forEach(r => {
+    const o = document.createElement('option');
+    o.value=r; o.textContent=r;
+    if(r===n.resolution) o.selected=true;
+    resSel.appendChild(o);
+  });
+  resSel.addEventListener('change', e => { n.resolution = e.target.value; });
+  resRow.appendChild(resSel);
+  settingsRows.appendChild(resRow);
+
+  settingsSection.appendChild(settingsRows);
+  el.appendChild(settingsSection);
+
+  // Events
+  setupNodeEvents(el, n);
+
+  return el;
+}
+
+function setupNodeEvents(el, n) {
+  let isDragging = false, startX, startY, startNX, startNY;
+
+  el.addEventListener('mousedown', e => {
+    if (e.target.closest('select,textarea,input,button')) return;
+    if (e.target.dataset.isOutput || e.target.dataset.port) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (activeTool === 'cut') return;
+
+    const cx = (e.clientX - canvasRect().left - panX) / zoom;
+    const cy = (e.clientY - canvasRect().top - panY) / zoom;
+    startX = cx; startY = cy;
+    startNX = n.x; startNY = n.y;
+    isDragging = true;
+
+    if (!e.shiftKey && !selectedNodes.has(n.id)) {
+      selectedNodes.clear();
+    }
+    selectedNodes.add(n.id);
+    renderNodes();
+
+    const onMove = e2 => {
+      if (!isDragging) return;
+      const cx2 = (e2.clientX - canvasRect().left - panX) / zoom;
+      const cy2 = (e2.clientY - canvasRect().top - panY) / zoom;
+      const dx = cx2 - startX, dy = cy2 - startY;
+      // Move all selected nodes
+      selectedNodes.forEach(sid => {
+        const sn = nodes.find(x => x.id === sid);
+        if (sn) {
+          sn.x = (sn === n ? startNX : sn.x) + (sn === n ? dx : (cx2 - startX));
+          sn.y = (sn === n ? startNY : sn.y) + (sn === n ? dy : (cy2 - startY));
+        }
+      });
+      n.x = startNX + dx;
+      n.y = startNY + dy;
+      el.style.left = n.x + 'px';
+      el.style.top = n.y + 'px';
+      renderConnections();
+    };
+    const onUp = () => {
+      if (isDragging) { isDragging = false; saveUndo(); renderNodes(); }
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+
+  el.addEventListener('click', e => {
+    if (e.target.classList.contains('receiving-x')) {
+      saveUndo();
+      const nid = e.target.dataset.node;
+      const tnode = nodes.find(x => x.id === nid);
+      if (tnode) {
+        tnode.receivingImagePrompt = false;
+        connections = connections.filter(c => !(c.toNodeId === nid && c.toPort === 'imagePrompt'));
+        renderAll();
+      }
+    }
+  });
+
+  // Dot mousedown for connection drawing
+  el.querySelectorAll('.dot-output,.dot-input').forEach(dot => {
+    dot.addEventListener('mousedown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = dot.getBoundingClientRect();
+      const cr = canvasRect();
+      const sx = (rect.left + rect.width/2 - cr.left - panX) / zoom;
+      const sy = (rect.top + rect.height/2 - cr.top - panY) / zoom;
+      drawingConn = {
+        fromNodeId: dot.dataset.nodeId,
+        fromPort: dot.dataset.port,
+        fromColor: dot.dataset.color,
+        startX: sx, startY: sy,
+        isOutput: !!dot.dataset.isOutput
+      };
+    });
+  });
+
+  el.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    showContextMenu(e.clientX, e.clientY, 'node', n.id);
+  });
+}
+
+// ============================================================
+// CONNECTIONS
+// ============================================================
+function renderConnections() {
+  const svg = document.getElementById('svg-overlay');
+  svg.innerHTML = '';
+
+  connections.forEach(conn => {
+    const fromDot = document.querySelector(`.node[data-node-id="${conn.fromNodeId}"] .dot-output`);
+    const toDot = document.querySelector(`.node[data-node-id="${conn.toNodeId}"] [data-port="${conn.toPort}"]`);
+    if (!fromDot || !toDot) return;
+
+    const cr = canvasRect();
+    const fr = fromDot.getBoundingClientRect();
+    const tr = toDot.getBoundingClientRect();
+
+    const x1 = (fr.left + fr.width/2 - cr.left - panX) / zoom;
+    const y1 = (fr.top + fr.height/2 - cr.top - panY) / zoom;
+    const x2 = (tr.left + tr.width/2 - cr.left - panX) / zoom;
+    const y2 = (tr.top + tr.height/2 - cr.top - panY) / zoom;
+
+    const dx = Math.abs(x2-x1)*0.5;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke', conn.animated ? '#6b6bff' : 'rgba(107,107,255,0.3)');
+    path.setAttribute('stroke-width', '2');
+    path.className.baseVal = 'conn-path';
+    if (conn.animated) {
+      path.setAttribute('stroke-dasharray','8 4');
+      path.style.animation = 'flowDash 0.5s linear infinite';
+    }
+    path.style.pointerEvents = 'visibleStroke';
+    path.dataset.connId = conn.id;
+    path.style.cursor = 'pointer';
+
+    // Store path data for cut detection
+    conn._pathData = {x1,y1,x2,y2};
+
+    svg.appendChild(path);
+  });
+}
+
+function screenToCanvas(x, y) {
+  const cr = canvasRect();
+  return {
+    x: (x - cr.left - panX) / zoom,
+    y: (y - cr.top - panY) / zoom
+  };
+}
+
+function canvasRect() {
+  return document.getElementById('canvas-wrap').getBoundingClientRect();
+}
+
+// ============================================================
+// PAN & ZOOM
+// ============================================================
+function applyTransform() {
+  document.getElementById('canvas').style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+  updateZoomDisplay();
+}
+
+function updateZoomDisplay() {
+  document.getElementById('zoom-display').textContent = Math.round(zoom*100) + '%';
+}
+
+// ============================================================
+// RUN NODE / WORKFLOW
+// ============================================================
+function runNode(nodeId) {
+  const n = nodes.find(x => x.id === nodeId);
+  if (!n) return;
+  const el = document.querySelector(`.node[data-node-id="${nodeId}"]`);
+  if (!el) return;
+  el.classList.add('running');
+  setTimeout(() => {
+    el.classList.remove('running');
+    const imgIdx = Math.floor(Math.random() * PLACEHOLDER_IMAGES.length);
+    n.image = PLACEHOLDER_IMAGES[imgIdx] + '?' + Date.now();
+    const img = el.querySelector('img');
+    if (img) img.src = n.image;
+  }, 2000);
+}
+
+function runWorkflow() {
+  if (workflowRunning) return;
+  workflowRunning = true;
+  renderNodes();
+
+  const ordered = [...nodes];
+  let idx = 0;
+
+  function runNext() {
+    if (idx >= ordered.length) {
+      workflowRunning = false;
+      renderNodes();
+      return;
+    }
+    const n = ordered[idx];
+    const el = document.querySelector(`.node[data-node-id="${n.id}"]`);
+    if (el) el.classList.add('running');
+
+    // Animate outgoing connections after node runs
+    setTimeout(() => {
+      if (el) el.classList.remove('running');
+      const imgI = Math.floor(Math.random()*PLACEHOLDER_IMAGES.length);
+      n.image = PLACEHOLDER_IMAGES[imgI] + '?' + Date.now();
+      if (el) { const img = el.querySelector('img'); if(img) img.src = n.image; }
+
+      // Animate connections from this node
+      connections.filter(c => c.fromNodeId === n.id).forEach(c => { c.animated = true; });
+      renderConnections();
+
+      setTimeout(() => {
+        connections.forEach(c => { c.animated = false; });
+        idx++;
+        runNext();
+      }, 800);
+    }, 2000);
+  }
+  runNext();
+}
+
+function stopWorkflow() {
+  workflowRunning = false;
+  connections.forEach(c => { c.animated = false; });
+  renderNodes();
+  renderConnections();
+}
+
+// ============================================================
+// UNDO/REDO
+// ============================================================
+function saveUndo() {
+  undoStack.push(JSON.stringify({nodes, connections}));
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack = [];
+  updateUndoButtons();
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(JSON.stringify({nodes, connections}));
+  const state = JSON.parse(undoStack.pop());
+  nodes = state.nodes;
+  connections = state.connections;
+  nodeIdCounter = Math.max(...nodes.map(n => parseInt(n.id.split('-')[1]||0)), nodeIdCounter) + 1;
+  selectedNodes.clear();
+  renderAll();
+  updateUndoButtons();
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.stringify({nodes, connections}));
+  const state = JSON.parse(redoStack.pop());
+  nodes = state.nodes;
+  connections = state.connections;
+  selectedNodes.clear();
+  renderAll();
+  updateUndoButtons();
+}
+
+function updateUndoButtons() {
+  document.getElementById('undo-btn').disabled = !undoStack.length;
+  document.getElementById('redo-btn').disabled = !redoStack.length;
+}
+
+// ============================================================
+// TOOLTIP
+// ============================================================
+const tooltip = document.getElementById('tooltip');
+let tooltipTimer;
+
+document.querySelectorAll('[data-tooltip]').forEach(el => {
+  el.addEventListener('mouseenter', e => {
+    tooltipTimer = setTimeout(() => {
+      tooltip.innerHTML = el.dataset.tooltip + (el.dataset.shortcut ? ` <span class="tooltip-shortcut">${el.dataset.shortcut}</span>` : '');
+      const r = el.getBoundingClientRect();
+      tooltip.style.opacity = '1';
+      tooltip.style.left = (r.left + r.width/2) + 'px';
+      tooltip.style.top = (r.top - 36) + 'px';
+      tooltip.style.transform = 'translateX(-50%)';
+    }, 200);
+  });
+  el.addEventListener('mouseleave', () => {
+    clearTimeout(tooltipTimer);
+    tooltip.style.opacity = '0';
+  });
+});
+
+// ============================================================
+// THEME
+// ============================================================
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  isDark = !isDark;
+  document.body.classList.toggle('dark', isDark);
+  document.getElementById('theme-icon-sun').style.display = isDark ? 'none' : '';
+  document.getElementById('theme-icon-moon').style.display = isDark ? '' : 'none';
+});
+
+// ============================================================
+// TOOL SELECTION
+// ============================================================
+['tool-new','tool-select','tool-pan','tool-cut','tool-presets'].forEach(id => {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const tool = id.replace('tool-','');
+    if (tool === 'new') { addNode('image'); return; }
+    if (tool === 'presets') { document.getElementById('presets-modal').classList.remove('hidden'); return; }
+    setActiveTool(tool);
+  });
+});
+
+function setActiveTool(tool) {
+  activeTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('tool-' + tool);
+  if (btn) btn.classList.add('active');
+  const wrap = document.getElementById('canvas-wrap');
+  wrap.classList.toggle('pan-mode', tool === 'pan');
+  wrap.classList.toggle('cut-mode', tool === 'cut');
+}
+
+function addNode(type, x=null, y=null, model=null) {
+  saveUndo();
+  const cr = canvasRect();
+  const cx = x !== null ? x : (cr.width/2 - panX) / zoom - NODE_WIDTH/2;
+  const cy = y !== null ? y : (cr.height/2 - panY) / zoom - 200;
+  const n = createNode(type, cx, cy, model);
+  nodes.push(n);
+  selectedNodes.clear();
+  selectedNodes.add(n.id);
+  renderAll();
+  return n;
+}
+
+// ============================================================
+// CANVAS MOUSE EVENTS
+// ============================================================
+const canvasWrap = document.getElementById('canvas-wrap');
+
+canvasWrap.addEventListener('mousedown', e => {
+  if (e.target.closest('.node')) return;
+  if (e.target.closest('#svg-overlay')) return;
+
+  const cr = canvasRect();
+
+  // Pan
+  if (activeTool === 'pan' || spaceHeld || e.button === 1) {
+    isPanning = true;
+    panStartX = e.clientX; panStartY = e.clientY;
+    panStartPanX = panX; panStartPanY = panY;
+    canvasWrap.style.cursor = 'grabbing';
+    return;
+  }
+
+  // Cut drag
+  if (activeTool === 'cut') {
+    cutDrag = { startX: e.clientX, startY: e.clientY, x2: e.clientX, y2: e.clientY };
+    return;
+  }
+
+  // Selection box
+  if (activeTool === 'select') {
+    const px = (e.clientX - cr.left - panX) / zoom;
+    const py = (e.clientY - cr.top - panY) / zoom;
+    selectionDrag = { startX: px, startY: py };
+    if (!e.shiftKey) selectedNodes.clear();
+    return;
+  }
+
+  selectedNodes.clear();
+  renderNodes();
+});
+
+window.addEventListener('mousemove', e => {
+  // Live connection drawing
+  if (drawingConn) {
+    const cr = canvasRect();
+    const ex = (e.clientX - cr.left - panX) / zoom;
+    const ey = (e.clientY - cr.top - panY) / zoom;
+    const svg = document.getElementById('svg-overlay');
+    // Remove preview
+    const prev = svg.querySelector('#preview-conn');
+    if (prev) prev.remove();
+
+    const x1=drawingConn.startX, y1=drawingConn.startY, x2=ex, y2=ey;
+    const dx = Math.abs(x2-x1)*0.5;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.id = 'preview-conn';
+    path.setAttribute('d', `M ${x1} ${y1} C ${x1+dx} ${y1} ${x2-dx} ${y2} ${x2} ${y2}`);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke', drawingConn.fromColor);
+    path.setAttribute('stroke-width','2');
+    path.setAttribute('stroke-dasharray','5 3');
+    svg.appendChild(path);
+
+    // Highlight valid targets
+    document.querySelectorAll('.dot-input,.dot-output').forEach(d => {
+      d.style.boxShadow = (d.dataset.color === drawingConn.fromColor && !d.dataset.isOutput) ? '0 0 0 3px rgba(91,156,246,0.5)' : '';
+    });
+    return;
+  }
+
+  // Pan
+  if (isPanning) {
+    panX = panStartPanX + (e.clientX - panStartX);
+    panY = panStartPanY + (e.clientY - panStartY);
+    applyTransform();
+    return;
+  }
+
+  // Selection drag
+  if (selectionDrag) {
+    const cr = canvasRect();
+    const px = (e.clientX - cr.left - panX) / zoom;
+    const py = (e.clientY - cr.top - panY) / zoom;
+    const box = document.getElementById('selection-box');
+    const x = Math.min(px, selectionDrag.startX);
+    const y = Math.min(py, selectionDrag.startY);
+    const w = Math.abs(px - selectionDrag.startX);
+    const h = Math.abs(py - selectionDrag.startY);
+    box.style.cssText = `display:block;left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+
+    // Select intersecting nodes
+    nodes.forEach(n => {
+      const inBox = n.x < x+w && n.x+NODE_WIDTH > x && n.y < y+h && n.y+100 > y;
+      if (inBox) selectedNodes.add(n.id);
+      else if (!e.shiftKey) selectedNodes.delete(n.id);
+    });
+    renderNodes();
+    return;
+  }
+
+  // Cut drag
+  if (cutDrag) {
+    cutDrag.x2 = e.clientX;
+    cutDrag.y2 = e.clientY;
+    const cutSvg = document.getElementById('cut-svg');
+    cutSvg.innerHTML = `<line x1="${cutDrag.startX}" y1="${cutDrag.startY}" x2="${cutDrag.x2}" y2="${cutDrag.y2}" stroke="#e05252" stroke-width="2" stroke-dasharray="6 4"/>`;
+
+    // Highlight intersecting connections
+    connections.forEach(conn => {
+      if (!conn._pathData) return;
+      const cr2 = canvasRect();
+      const sx1 = conn._pathData.x1 * zoom + panX + cr2.left;
+      const sy1 = conn._pathData.y1 * zoom + panY + cr2.top;
+      const sx2 = conn._pathData.x2 * zoom + panX + cr2.left;
+      const sy2 = conn._pathData.y2 * zoom + panY + cr2.top;
+      conn._cutHighlight = linesIntersect(cutDrag.startX, cutDrag.startY, cutDrag.x2, cutDrag.y2, sx1, sy1, sx2, sy2);
+    });
+    renderConnections();
+  }
+});
+
+window.addEventListener('mouseup', e => {
+  // Finish connection drawing
+  if (drawingConn) {
+    const svg = document.getElementById('svg-overlay');
+    const prev = svg.querySelector('#preview-conn');
+    if (prev) prev.remove();
+    document.querySelectorAll('.dot-input,.dot-output').forEach(d => d.style.boxShadow = '');
+
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    if (target && target.dataset.port && !target.dataset.isOutput) {
+      const targetColor = target.dataset.color;
+      if (targetColor === drawingConn.fromColor) {
+        saveUndo();
+        const toNodeId = target.dataset.nodeId;
+        const toPort = target.dataset.port;
+        // Remove existing conn to this port
+        connections = connections.filter(c => !(c.toNodeId === toNodeId && c.toPort === toPort));
+        connections.push({
+          id: 'conn-' + (connIdCounter++),
+          fromNodeId: drawingConn.fromNodeId,
+          fromPort: drawingConn.fromPort,
+          toNodeId,
+          toPort,
+          color: drawingConn.fromColor
+        });
+        if (toPort === 'imagePrompt') {
+          const tn = nodes.find(x => x.id === toNodeId);
+          if (tn) tn.receivingImagePrompt = true;
+        }
+        renderAll();
+      } else {
+        // Shake reject
+        const el = document.querySelector(`.node[data-node-id="${drawingConn.fromNodeId}"]`);
+        if (el) { el.style.animation='shake 0.3s ease'; setTimeout(()=>el.style.animation='',350); }
+      }
+    }
+    drawingConn = null;
+  }
+
+  if (isPanning) {
+    isPanning = false;
+    canvasWrap.style.cursor = '';
+  }
+
+  if (selectionDrag) {
+    selectionDrag = null;
+    document.getElementById('selection-box').style.display = 'none';
+  }
+
+  if (cutDrag) {
+    // Delete highlighted connections
+    saveUndo();
+    connections.filter(c => c._cutHighlight).forEach(c => {
+      const toNode = nodes.find(n => n.id === c.toNodeId);
+      if (toNode && c.toPort === 'imagePrompt') toNode.receivingImagePrompt = false;
+    });
+    connections = connections.filter(c => !c._cutHighlight);
+    cutDrag = null;
+    document.getElementById('cut-svg').innerHTML = '';
+    renderAll();
+  }
+});
+
+// Scroll zoom
+canvasWrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  const cr = canvasRect();
+  const mx = e.clientX - cr.left;
+  const my = e.clientY - cr.top;
+  panX = mx - (mx - panX) * factor;
+  panY = my - (my - panY) * factor;
+  zoom = Math.max(0.1, Math.min(5, zoom * factor));
+  applyTransform();
+}, {passive:false});
+
+// Middle mouse pan
+canvasWrap.addEventListener('mousedown', e => {
+  if (e.button === 1) {
+    e.preventDefault();
+    isPanning = true;
+    panStartX = e.clientX; panStartY = e.clientY;
+    panStartPanX = panX; panStartPanY = panY;
+  }
+});
+
+// Double click to add node
+canvasWrap.addEventListener('dblclick', e => {
+  if (e.target.closest('.node')) return;
+  const cr = canvasRect();
+  const x = (e.clientX - cr.left - panX) / zoom - NODE_WIDTH/2;
+  const y = (e.clientY - cr.top - panY) / zoom - 100;
+  saveUndo();
+  const n = createNode('image', x, y);
+  nodes.push(n);
+  selectedNodes.clear();
+  selectedNodes.add(n.id);
+  renderAll();
+});
+
+// Context menu
+canvasWrap.addEventListener('contextmenu', e => {
+  if (e.target.closest('.node')) return;
+  e.preventDefault();
+  showContextMenu(e.clientX, e.clientY, 'canvas');
+});
+
+// ============================================================
+// CONTEXT MENU
+// ============================================================
+function showContextMenu(x, y, type, nodeId=null) {
+  const menu = document.getElementById('context-menu');
+  menu.classList.remove('hidden');
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.innerHTML = '';
+
+  if (type === 'canvas') {
+    addMenuItem(menu, '□ Group', () => groupSelected());
+    addMenuItem(menu, '≡ Tidy Up', () => tidyUp());
+  } else {
+    addMenuItem(menu, '✂ Duplicate', () => duplicateNode(nodeId));
+    addMenuItem(menu, '🗑 Delete', () => deleteNode(nodeId), 'danger');
+  }
+}
+
+function addMenuItem(menu, label, action, cls='') {
+  const item = document.createElement('div');
+  item.className = 'ctx-item' + (cls ? ' '+cls : '');
+  item.textContent = label;
+  item.addEventListener('click', () => { menu.classList.add('hidden'); action(); });
+  menu.appendChild(item);
+}
+
+document.addEventListener('click', () => {
+  document.getElementById('context-menu').classList.add('hidden');
+});
+
+function groupSelected() {
+  if (selectedNodes.size < 1) return;
+  saveUndo();
+  const sel = nodes.filter(n => selectedNodes.has(n.id));
+  const minX = Math.min(...sel.map(n=>n.x)) - 20;
+  const minY = Math.min(...sel.map(n=>n.y)) - 40;
+  const maxX = Math.max(...sel.map(n=>n.x+NODE_WIDTH)) + 20;
+  const maxY = Math.max(...sel.map(n=>n.y+400)) + 20;
+  groups.push({x:minX,y:minY,w:maxX-minX,h:maxY-minY});
+  renderAll();
+}
+
+function tidyUp() {
+  saveUndo();
+  let x = 80;
+  nodes.forEach(n => { n.x = x; n.y = 80; x += NODE_WIDTH + 60; });
+  renderAll();
+}
+
+function duplicateNode(nodeId) {
+  saveUndo();
+  const n = nodes.find(x => x.id === nodeId);
+  if (!n) return;
+  const copy = JSON.parse(JSON.stringify(n));
+  copy.id = 'node-' + (nodeIdCounter++);
+  copy.x += 40; copy.y += 40;
+  copy.receivingImagePrompt = false;
+  nodes.push(copy);
+  selectedNodes.clear();
+  selectedNodes.add(copy.id);
+  renderAll();
+}
+
+function deleteNode(nodeId) {
+  saveUndo();
+  const n = nodes.find(x => x.id === nodeId);
+  if (!n) return;
+  nodes = nodes.filter(x => x.id !== nodeId);
+  connections = connections.filter(c => c.fromNodeId !== nodeId && c.toNodeId !== nodeId);
+  connections.forEach(c => {
+    if (c.toNodeId === nodeId && c.toPort === 'imagePrompt') {
+      const tn = nodes.find(x => x.id === c.toNodeId);
+      if (tn) tn.receivingImagePrompt = false;
+    }
+  });
+  selectedNodes.delete(nodeId);
+  renderAll();
+}
+
+// ============================================================
+// KEYBOARD SHORTCUTS
+// ============================================================
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement.tagName.toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    if (e.key === 'Escape') document.activeElement.blur();
+    return;
+  }
+
+  if (e.key === ' ') { e.preventDefault(); spaceHeld = true; canvasWrap.style.cursor='grab'; }
+
+  if (e.ctrlKey || e.metaKey) {
+    switch(e.key.toLowerCase()) {
+      case 'z':
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+        break;
+      case 'y': e.preventDefault(); redo(); break;
+      case 's': e.preventDefault(); showToast('Saved ✓'); break;
+      case 'a': e.preventDefault(); nodes.forEach(n=>selectedNodes.add(n.id)); renderNodes(); break;
+      case 'd': e.preventDefault(); selectedNodes.forEach(id=>duplicateNode(id)); break;
+      case 'g': e.preventDefault(); if(e.shiftKey) ungroupAll(); else groupSelected(); break;
+      case 'r': e.preventDefault(); selectedNodes.forEach(id=>runNode(id)); break;
+      case 'enter': e.preventDefault(); runWorkflow(); break;
+      case '=': case '+': e.preventDefault(); zoom=Math.min(5,zoom*1.1); applyTransform(); break;
+      case '-': e.preventDefault(); zoom=Math.max(0.1,zoom*0.9); applyTransform(); break;
+      case '0': e.preventDefault(); zoom=1;panX=0;panY=0;applyTransform(); break;
+    }
+    return;
+  }
+
+  switch(e.key) {
+    case 'Escape':
+      selectedNodes.clear(); renderNodes();
+      stopWorkflow();
+      closeModals();
+      break;
+    case 'n': case 'N': case 'i': case 'I': addNode('image'); break;
+    case 'v': case 'V': addNode('video', null, null, 'Wan 2.1'); break;
+    case 'l': case 'L': addNode('llm', null, null, 'GPT-4o'); break;
+    case 'x': case 'X': case 'y': case 'Y': setActiveTool('cut'); break;
+    case 'Delete': case 'Backspace':
+      e.preventDefault();
+      saveUndo();
+      [...selectedNodes].forEach(id => {
+        nodes = nodes.filter(n => n.id !== id);
+        connections = connections.filter(c => c.fromNodeId !== id && c.toNodeId !== id);
+      });
+      selectedNodes.clear();
+      renderAll();
+      break;
+  }
+});
+
+document.addEventListener('keyup', e => {
+  if (e.key === ' ') { spaceHeld = false; if (activeTool !== 'pan') canvasWrap.style.cursor = ''; }
+});
+
+function closeModals() {
+  document.getElementById('presets-modal').classList.add('hidden');
+  document.getElementById('kbd-modal').classList.add('hidden');
+}
+
+function ungroupAll() {
+  saveUndo();
+  groups = [];
+  renderAll();
+}
+
+// ============================================================
+// MODALS
+// ============================================================
+document.getElementById('close-presets').addEventListener('click', () => document.getElementById('presets-modal').classList.add('hidden'));
+document.getElementById('close-kbd').addEventListener('click', () => document.getElementById('kbd-modal').classList.add('hidden'));
+document.getElementById('kbd-shortcuts-btn').addEventListener('click', () => document.getElementById('kbd-modal').classList.remove('hidden'));
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.classList.add('hidden'); });
+});
+
+// Preset clicks
+document.querySelectorAll('.preset-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.getElementById('presets-modal').classList.add('hidden');
+    saveUndo();
+    const preset = card.dataset.preset;
+    const cr = canvasRect();
+    const cx = (cr.width/2 - panX) / zoom;
+    const cy = (cr.height/2 - panY) / zoom;
+    nodes = []; connections = []; selectedNodes.clear(); groups = [];
+
+    if (preset === 'image-gen') {
+      const n = createNode('image', cx-115, cy-200);
+      nodes.push(n);
+      selectedNodes.add(n.id);
+    } else if (preset === 'video-gen') {
+      const n = createNode('video', cx-115, cy-200, 'Wan 2.1');
+      nodes.push(n);
+      selectedNodes.add(n.id);
+    } else if (preset === 'upscale') {
+      const n1 = createNode('image', cx-240, cy-200);
+      const n2 = createNode('image', cx+100, cy-200);
+      n2.receivingImagePrompt = true;
+      nodes.push(n1, n2);
+      connections.push({id:'conn-'+(connIdCounter++),fromNodeId:n1.id,fromPort:'image-output',toNodeId:n2.id,toPort:'imagePrompt',color:'#5b9cf6'});
+      selectedNodes.add(n1.id); selectedNodes.add(n2.id);
+    } else if (preset === 'llm-caption') {
+      const n = createNode('llm', cx-115, cy-200, 'GPT-4o');
+      nodes.push(n);
+      selectedNodes.add(n.id);
+    } else if (preset === 'prompt-workflow') {
+      const n1 = createNode('image', cx-240, cy-200);
+      const n2 = createNode('image', cx+100, cy-200);
+      n2.receivingImagePrompt = true;
+      nodes.push(n1, n2);
+      connections.push({id:'conn-'+(connIdCounter++),fromNodeId:n1.id,fromPort:'image-output',toNodeId:n2.id,toPort:'imagePrompt',color:'#5b9cf6'});
+      selectedNodes.add(n1.id); selectedNodes.add(n2.id);
+    }
+    renderAll();
+  });
+});
+
+// Undo/Redo buttons
+document.getElementById('undo-btn').addEventListener('click', undo);
+document.getElementById('redo-btn').addEventListener('click', redo);
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ============================================================
+// LINE INTERSECTION (for cut tool)
+// ============================================================
+function linesIntersect(x1,y1,x2,y2,x3,y3,x4,y4) {
+  const denom = (x1-x2)*(y3-y4)-(y1-y2)*(x3-x4);
+  if (Math.abs(denom) < 1e-10) return false;
+  const t = ((x1-x3)*(y3-y4)-(y1-y3)*(x3-x4))/denom;
+  const u = -((x1-x2)*(y1-y3)-(y1-y2)*(x1-x3))/denom;
+  return t>=0&&t<=1&&u>=0&&u<=1;
+}
+
+// ============================================================
+// START
+// ============================================================
+init();
+applyTransform();
+</script>
+</body>
+</html>

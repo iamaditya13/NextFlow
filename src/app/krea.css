@@ -1,0 +1,114 @@
+/* =============================================
+   KREA.AI — EXTRACTED CSS
+   ============================================= */
+
+/* --- Fonts --- */
+/* Primary font: "Suisse Intl", ui-sans-serif, system-ui, ... */
+
+/* --- Color Palette --- */
+:root {
+  --color-bg-primary: #000000;        /* Main page background */
+  --color-bg-nav: #101010;            /* Navbar background */
+  --color-bg-hero-section: #262626;   /* Hero section background */
+  --color-bg-features-dropdown: #030303; /* Features dropdown bg */
+
+  --color-text-primary: #FAFAFA;      /* Primary text (nav, headings) */
+  --color-text-white: #FFFFFF;        /* Pure white (button labels) */
+
+  /* Nav link hover backgrounds (each item has its own subtle bg) */
+  --color-nav-app-hover: #000000;
+  --color-nav-image-gen-hover: #000000;
+  --color-nav-video-gen-hover: #0D0D0D;
+  --color-nav-upscaler-hover: #0F0F0F;
+  --color-nav-api-hover: #060606;
+  --color-nav-pricing-hover: #080808;
+  --color-nav-enterprise-hover: #000000;
+
+  /* CTA Buttons */
+  --color-btn-signup-bg: #FC155D;       /* Sign Up button (blue in UI — inspector says #1555F4) */
+  --color-btn-signup-text: #FFFFFF;
+  --color-btn-launch-bg: #262626;       /* Launch App button */
+  --color-btn-launch-text: #FAFAFA;
+}
+
+/* --- Navbar --- */
+nav.text-xbase {
+  background-color: var(--color-bg-nav);
+  width: 832px; /* full-width container */
+  height: 46px;
+  font-family: "Suisse Intl", ui-sans-serif, system-ui;
+  font-size: 15px;
+  line-height: 22.5px;
+  font-weight: 400;
+  letter-spacing: 0.15px;
+  color: var(--color-text-primary);
+}
+
+/* Nav links */
+a.nav-link {
+  font-family: "Suisse Intl", ui-sans-serif, system-ui;
+  font-size: 15px;
+  line-height: 22.5px;
+  font-weight: 400;
+  color: #FFFFFF;
+  padding: 12px 20px 12px 20px;
+  height: 47px;
+  text-decoration: none;
+}
+
+/* Features dropdown button */
+button.nav-features-button {
+  font-family: "Suisse Intl";
+  font-size: 15px;
+  line-height: 22.5px;
+  font-weight: 400;
+  background-color: transparent;
+  padding: 12px 20px 12px 20px;
+  height: 47px;
+}
+
+/* --- Hero Section --- */
+.hero-section {
+  background-color: var(--color-bg-primary); /* #000000 outer */
+  /* video element sits below with bg #101010 */
+  font-family: "Suisse Intl";
+}
+
+/* Hero body text / container */
+video.h-full {
+  background-color: #101010;
+  width: 1238px;
+  height: 734.25px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  color: #000000;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* Hero CTA buttons — styles are applied via inline styles in JSX, not CSS */
+
+/* --- Typography Scale --- */
+/* Headline (hero) */
+.hero-headline {
+  font-family: "Suisse Intl";
+  font-weight: 700; /* bold */
+  color: #FAFAFA;
+}
+
+/* Subtext / body */
+.hero-subtext {
+  font-family: "Suisse Intl";
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  color: #FAFAFA;
+}
+
+/* --- Contrast Reference ---
+   Text #FAFAFA on bg #000000  → 334.4 : 1  (Excellent)
+   Text #FAFAFA on bg #262626  → 19.5  : 1  (Excellent)
+   Text #FFFFFF on bg #1555F4  → 4.0   : 1  (Very Poor — fails AA for small text)
+   Nav links on transparent    → 334.4 : 1  (Excellent)
+*/
