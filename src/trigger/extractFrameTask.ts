@@ -1,5 +1,5 @@
 import { task } from '@trigger.dev/sdk/v3'
-import { execSync } from 'child_process'
+import { execFile } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -18,6 +18,23 @@ export const extractFrameTask = task({
   maxDuration: 300,
 
   run: async (payload: ExtractPayload) => {
+    const runCommand = (command: string, args: string[]) =>
+      new Promise<string>((resolve, reject) => {
+        execFile(
+          command,
+          args,
+          { maxBuffer: 10 * 1024 * 1024 },
+          (error, stdout, stderr) => {
+            if (error) {
+              const details = (stderr || stdout || error.message || '').toString().trim()
+              reject(new Error(details || `${command} failed`))
+              return
+            }
+            resolve((stdout || '').toString())
+          }
+        )
+      })
+
     const { videoUrl, timestamp, runId, nodeId } = payload
 
     if (runId !== '__standalone__') {
@@ -32,36 +49,61 @@ export const extractFrameTask = task({
 
     const startTime = Date.now()
     const tmpDir = os.tmpdir()
-    const inputPath = path.join(tmpDir, `video_${Date.now()}.mp4`)
     const outputPath = path.join(tmpDir, `frame_${Date.now()}.jpg`)
 
     try {
-      const response = await fetch(videoUrl)
-      if (!response.ok) {
-        throw new Error(`Failed to download video: ${response.status}`)
-      }
-      const buffer = await response.arrayBuffer()
-      fs.writeFileSync(inputPath, Buffer.from(buffer))
-
       let timeSeconds = '0'
+      const normalizedTimestamp = String(timestamp || '0').trim()
 
-      if (String(timestamp).includes('%')) {
-        const pct = parseFloat(timestamp) / 100
-        const durOutput = execSync(
-          `ffprobe -v quiet -show_entries format=duration -of csv=p=0 "${inputPath}"`
-        )
-          .toString()
-          .trim()
+      if (normalizedTimestamp.includes('%')) {
+        const pctRaw = Number.parseFloat(normalizedTimestamp.replace('%', ''))
+        const pct = Math.min(100, Math.max(0, Number.isFinite(pctRaw) ? pctRaw : 0)) / 100
 
-        const dur = parseFloat(durOutput)
+        const durOutput = await runCommand('ffprobe', [
+          '-v',
+          'quiet',
+          '-show_entries',
+          'format=duration',
+          '-of',
+          'csv=p=0',
+          videoUrl,
+        ])
+
+        const dur = Number.parseFloat(durOutput.trim())
+        if (!Number.isFinite(dur) || dur <= 0) {
+          throw new Error('Unable to determine video duration')
+        }
         timeSeconds = String(Math.floor(dur * pct))
       } else {
-        timeSeconds = String(timestamp || '0')
+        const parsed = Number.parseFloat(normalizedTimestamp)
+        timeSeconds = String(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
       }
 
-      execSync(
-        `ffmpeg -ss ${timeSeconds} -i "${inputPath}" -vframes 1 -q:v 2 -y "${outputPath}"`
-      )
+      await runCommand('ffmpeg', [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-ss',
+        timeSeconds,
+        '-i',
+        videoUrl,
+        '-frames:v',
+        '1',
+        '-q:v',
+        '2',
+        '-y',
+        outputPath,
+      ])
+
+      const fileExists = fs.existsSync(outputPath)
+      if (!fileExists) {
+        throw new Error('Extract-frame output file was not generated')
+      }
+
+      const fileSize = fs.statSync(outputPath).size
+      if (fileSize <= 0) {
+        throw new Error('Extract-frame output file is empty')
+      }
 
       const url = await uploadToTransloadit(outputPath, 'image/jpeg')
       const duration = Date.now() - startTime
@@ -96,9 +138,6 @@ export const extractFrameTask = task({
 
       throw error
     } finally {
-      try {
-        fs.unlinkSync(inputPath)
-      } catch {}
       try {
         fs.unlinkSync(outputPath)
       } catch {}

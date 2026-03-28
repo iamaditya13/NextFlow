@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       nodeId: '__standalone__',
     })
 
-    const result = await runs.poll(handle.id, { pollIntervalMs: 1000 })
+    const result = await runs.poll(handle.id, { pollIntervalMs: 300 })
 
     if (!result.output) {
       return error('Crop image task produced no output', 500)

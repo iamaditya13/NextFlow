@@ -47,8 +47,11 @@ export async function uploadToTransloadit(
 
   let assembly: any = result
   let attempts = 0
-  while (assembly.ok !== 'ASSEMBLY_COMPLETED' && attempts < 60) {
-    await new Promise((r) => setTimeout(r, 1000))
+  const pollIntervalMs = 500
+  const maxAttempts = 120 // keep overall timeout ~60s
+
+  while (assembly.ok !== 'ASSEMBLY_COMPLETED' && attempts < maxAttempts) {
+    await new Promise((r) => setTimeout(r, pollIntervalMs))
     attempts++
     const poll = await fetch(assembly.assembly_ssl_url)
     assembly = await poll.json()
