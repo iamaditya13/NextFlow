@@ -51,9 +51,12 @@ export async function POST(req: NextRequest) {
       return error('LLM task produced no output', 500)
     }
 
-    return success({
-      output: (result.output as { text?: string }).text ?? result.output,
-    })
+    const outputText = (result.output as { text?: string }).text
+    if (outputText === undefined || outputText === null) {
+      return error('LLM task returned no text', 500)
+    }
+
+    return success({ output: outputText })
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Internal server error'
     return error(message, 500)

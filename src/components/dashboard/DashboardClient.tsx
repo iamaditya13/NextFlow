@@ -886,8 +886,13 @@ export function DashboardClient({
             setHoveredNodeId(node.id)
           }}
           onNodeMouseLeave={(event, node) => {
-            const relatedTarget = event.relatedTarget as HTMLElement | null
-            if (relatedTarget?.closest('[data-node-action-toolbar="true"]')) return
+            const relatedTarget = event.relatedTarget
+            if (
+              relatedTarget instanceof Element &&
+              relatedTarget.closest('[data-node-action-toolbar="true"]')
+            ) {
+              return
+            }
             scheduleHideHoveredToolbar(node.id)
           }}
           onPaneClick={() => {
@@ -1006,6 +1011,8 @@ export function DashboardClient({
                 setNodes(preset.nodes)
                 setEdges(preset.edges)
                 store.pushHistory({ nodes: preset.nodes, edges: preset.edges })
+                store.clearRun()
+                setWorkflowName(tmpl.title)
                 debouncedSave()
               }
             }}

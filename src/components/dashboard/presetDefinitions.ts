@@ -11,6 +11,7 @@ export type PresetId =
   | '8k-upscaling'
   | 'llm-image-captioning'
   | 'prompt-to-workflow'
+  | 'product-marketing-kit'
   | 'empty'
 
 export interface PresetWorkflow {

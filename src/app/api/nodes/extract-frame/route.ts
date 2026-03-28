@@ -47,9 +47,12 @@ export async function POST(req: NextRequest) {
       return error('Extract frame task produced no output', 500)
     }
 
-    return success({
-      output: (result.output as { url?: string }).url ?? result.output,
-    })
+    const outputUrl = (result.output as { url?: string }).url
+    if (!outputUrl) {
+      return error('Extract frame task returned no URL', 500)
+    }
+
+    return success({ output: outputUrl })
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Internal server error'
     return error(message, 500)
