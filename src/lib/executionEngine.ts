@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 interface WorkflowNode {
   id: string
   type: string
-  data: any
+  data: Record<string, unknown>
 }
 
 interface WorkflowEdge {
@@ -51,7 +51,7 @@ export async function executeWorkflow(
 
   const nodesToRun = nodes.filter((node) => nodeIdsToRun.has(node.id))
 
-  let run: any
+  let run: { id: string; startedAt: Date } | null = null
 
   if (existingRunId) {
     run = await prisma.workflowRun.findUnique({
@@ -76,7 +76,7 @@ export async function executeWorkflow(
     data: nodesToRun.map((node) => ({
       runId: run.id,
       nodeId: node.id,
-      nodeName: node.data?.label || node.type,
+      nodeName: (node.data?.label as string) || node.type,
       nodeType: node.type,
       status: 'PENDING' as const,
     })),
@@ -97,7 +97,7 @@ export async function executeWorkflow(
 
   const completed = new Set<string>()
   const failed = new Set<string>()
-  const nodeOutputs = new Map<string, any>()
+  const nodeOutputs = new Map<string, Record<string, unknown>>()
 
   const getReadyNodes = (): WorkflowNode[] => {
     return nodesToRun.filter((node) => {
@@ -176,11 +176,10 @@ async function executeNode(
   node: WorkflowNode,
   runId: string,
   edges: WorkflowEdge[],
-  nodeOutputs: Map<string, any>
-): Promise<any> {
-  const extractString = (input: any): string | undefined => {
-    if (typeof input === 'string') return input
-    if (!input || typeof input !== 'object') return undefined
+  nodeOutputs: Map<string, Record<string, unknown>>
+): Promise<Record<string, unknown>> {
+  const extractString = (input: Record<string, unknown> | null): string | undefined => {
+    if (!input) return undefined
     const candidates = [input.text, input.value, input.url, input.fileUrl]
     for (const candidate of candidates) {
       if (typeof candidate === 'string') return candidate
@@ -188,9 +187,8 @@ async function executeNode(
     return undefined
   }
 
-  const extractNumber = (input: any): number | undefined => {
-    if (typeof input === 'number' && Number.isFinite(input)) return input
-    if (!input || typeof input !== 'object') return undefined
+  const extractNumber = (input: Record<string, unknown> | null): number | undefined => {
+    if (!input) return undefined
     const candidates = [input.value, input.text]
     for (const candidate of candidates) {
       if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate
@@ -202,9 +200,8 @@ async function executeNode(
     return undefined
   }
 
-  const extractUrl = (input: any): string | undefined => {
-    if (typeof input === 'string' && input.length > 0) return input
-    if (!input || typeof input !== 'object') return undefined
+  const extractUrl = (input: Record<string, unknown> | null): string | undefined => {
+    if (!input) return undefined
     const candidates = [input.url, input.fileUrl, input.text, input.value]
     for (const candidate of candidates) {
       if (typeof candidate === 'string' && candidate.length > 0) return candidate
@@ -212,19 +209,19 @@ async function executeNode(
     return undefined
   }
 
-  const getInput = (handleId: string): any => {
+  const getInput = (handleId: string): Record<string, unknown> | null => {
     const edge = [...edges]
       .reverse()
       .find((e) => e.target === node.id && e.targetHandle === handleId)
     if (!edge) return null
-    return nodeOutputs.get(edge.source) || null
+    return nodeOutputs.get(edge.source) ?? null
   }
 
   const getImageUrls = (): string[] => {
     return edges
       .filter((e) => e.target === node.id && e.targetHandle === 'images')
       .map((e) => {
-        const output = nodeOutputs.get(e.source)
+        const output = nodeOutputs.get(e.source) ?? null
         return extractUrl(output)
       })
       .filter((url): url is string => typeof url === 'string' && url.length > 0)
@@ -248,22 +245,22 @@ async function executeNode(
 
     case 'uploadImage':
     case 'uploadVideo': {
-      const url = node.data.fileUrl || node.data.url || ''
-      const success = !!url
+      const url = (node.data.fileUrl as string) || (node.data.url as string) || ''
+      const hasFile = !!url
 
       await prisma.nodeResult.updateMany({
         where: { runId, nodeId: node.id },
         data: {
-          status: success ? 'SUCCESS' : 'FAILED',
-          outputs: success ? { url } : undefined,
-          error: success ? null : 'No file uploaded',
+          status: hasFile ? 'SUCCESS' : 'FAILED',
+          outputs: hasFile ? { url } : undefined,
+          error: hasFile ? null : 'No file uploaded',
           startedAt: new Date(),
           completedAt: new Date(),
           duration: 0,
         },
       })
 
-      if (!success) {
+      if (!hasFile) {
         throw new Error(`No file uploaded in ${node.type} node`)
       }
 
@@ -276,15 +273,15 @@ async function executeNode(
       const imageUrls = getImageUrls()
 
       const systemPrompt =
-        extractString(systemPromptInput) || node.data.systemPrompt || undefined
-      const userMessage = extractString(userMessageInput) || node.data.userMessage || ''
+        extractString(systemPromptInput) || (node.data.systemPrompt as string | undefined) || undefined
+      const userMessage = extractString(userMessageInput) || (node.data.userMessage as string) || ''
 
       if (!userMessage) {
         throw new Error('LLM node: no user message provided')
       }
 
       const result = await tasks.triggerAndWait('llm-execution', {
-        model: node.data.model || 'gemini-1.5-flash',
+        model: (node.data.model as string) || 'gemini-1.5-flash',
         systemPrompt,
         userMessage,
         imageUrls,
@@ -305,7 +302,7 @@ async function executeNode(
         throw new Error(errorMessage)
       }
 
-      return result.output
+      return result.output as Record<string, unknown>
     }
 
     case 'cropImage': {
@@ -315,7 +312,7 @@ async function executeNode(
       const wInput = getInput('width_percent')
       const hInput = getInput('height_percent')
 
-      const imageUrl = extractUrl(imageInput) || node.data.fileUrl
+      const imageUrl = extractUrl(imageInput) || (node.data.fileUrl as string | undefined)
 
       if (!imageUrl) {
         throw new Error('Crop node: no image URL provided')
@@ -323,10 +320,10 @@ async function executeNode(
 
       const result = await tasks.triggerAndWait('crop-image', {
         imageUrl,
-        xPercent: extractNumber(xInput) ?? node.data.xPercent ?? 0,
-        yPercent: extractNumber(yInput) ?? node.data.yPercent ?? 0,
-        widthPercent: extractNumber(wInput) ?? node.data.widthPercent ?? 100,
-        heightPercent: extractNumber(hInput) ?? node.data.heightPercent ?? 100,
+        xPercent: extractNumber(xInput) ?? (node.data.xPercent as number) ?? 0,
+        yPercent: extractNumber(yInput) ?? (node.data.yPercent as number) ?? 0,
+        widthPercent: extractNumber(wInput) ?? (node.data.widthPercent as number) ?? 100,
+        heightPercent: extractNumber(hInput) ?? (node.data.heightPercent as number) ?? 100,
         runId,
         nodeId: node.id,
       })
@@ -335,14 +332,14 @@ async function executeNode(
         throw new Error('Crop image task failed')
       }
 
-      return result.output
+      return result.output as Record<string, unknown>
     }
 
     case 'extractFrame': {
       const videoInput = getInput('video_url')
       const timestampInput = getInput('timestamp')
 
-      const videoUrl = extractUrl(videoInput) || node.data.fileUrl
+      const videoUrl = extractUrl(videoInput) || (node.data.fileUrl as string | undefined)
 
       if (!videoUrl) {
         throw new Error('Extract Frame: no video URL provided')
@@ -350,7 +347,7 @@ async function executeNode(
 
       const result = await tasks.triggerAndWait('extract-frame', {
         videoUrl,
-        timestamp: extractString(timestampInput) ?? node.data.timestamp ?? '0',
+        timestamp: extractString(timestampInput) ?? (node.data.timestamp as string) ?? '0',
         runId,
         nodeId: node.id,
       })
@@ -359,7 +356,7 @@ async function executeNode(
         throw new Error('Extract frame task failed')
       }
 
-      return result.output
+      return result.output as Record<string, unknown>
     }
 
     default:

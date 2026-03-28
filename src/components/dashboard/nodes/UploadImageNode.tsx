@@ -5,6 +5,16 @@ import { Upload, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { uploadFileToTransloadit } from './uploadToTransloaditClient'
 
+interface UploadImageNodeData {
+  label?: string
+  fileUrl?: string
+  fileName?: string
+  uploadError?: string
+  executionStatus?: string
+  onDelete?: () => void
+  onUpdateData?: (updates: Record<string, unknown>) => void
+}
+
 function getStatusClass(status: string) {
   if (status === 'running') return 'nf-node--running'
   if (status === 'success') return 'nf-node--success'
@@ -12,7 +22,7 @@ function getStatusClass(status: string) {
   return ''
 }
 
-export function UploadImageNode({ data, selected }: any) {
+export function UploadImageNode({ data, selected }: { data: UploadImageNodeData; selected?: boolean }) {
   const status = (data.executionStatus || 'idle').toLowerCase()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -46,7 +56,14 @@ export function UploadImageNode({ data, selected }: any) {
         <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif" onChange={onSelectFile} style={{ display: 'none' }} />
 
         {data.fileUrl ? (
-          <img src={data.fileUrl} className="nf-node__preview" alt="Uploaded" onClick={() => fileInputRef.current?.click()} style={{ cursor: 'pointer' }} />
+          <img
+            src={data.fileUrl}
+            className="nf-node__preview"
+            alt="Uploaded"
+            onClick={() => fileInputRef.current?.click()}
+            style={{ cursor: 'pointer' }}
+            onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3' }}
+          />
         ) : (
           <button
             className="nf-node__upload-zone"

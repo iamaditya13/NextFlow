@@ -80,6 +80,15 @@
   --nf-node-preview: 254px;
   --nf-handle-size: 10px;
   --nf-canvas-agent: 56px;
+  --nf-node-actions-outside-gap-x: 8px;
+  --nf-node-actions-outside-gap-y: 8px;
+  --nf-node-actions-gap: 6px;
+  --nf-node-actions-h: 28px;
+  --nf-node-actions-pad-x: 12px;
+  --nf-node-actions-icon: 12px;
+  --nf-node-actions-font-size: var(--nf-font-size-xs);
+  --nf-node-actions-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  --nf-node-actions-z: 20;
 
   /* Font */
   --nf-font: var(--font-suisse-intl), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -936,6 +945,29 @@
   margin-bottom: 0;
 }
 .nf-node__select:focus { outline: none; }
+.nf-node__select option {
+  background: var(--nf-bg-node);
+  color: var(--nf-text-primary);
+}
+
+.nf-node__select-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.nf-node__select--with-icon {
+  background-image: none;
+  padding-right: 22px;
+}
+
+.nf-node__select-indicator {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--nf-text-label);
+  pointer-events: none;
+}
 
 .nf-node__label {
   display: block;
@@ -950,6 +982,11 @@
   align-items: center;
   gap: 8px;
   padding: 4px 16px;
+}
+
+.nf-node__field--divider {
+  border-top: 1px solid var(--nf-border-inner);
+  min-height: 28px;
 }
 
 .nf-node__hint {
@@ -1362,6 +1399,66 @@
   width: 36px;
   padding: 0;
   justify-content: center;
+}
+
+/* Node run actions (hover/selected) */
+.nf-node-actions {
+  position: absolute;
+  z-index: var(--nf-node-actions-z);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nf-node-actions-gap);
+  pointer-events: auto;
+  transform: translate(
+    calc(-100% - var(--nf-node-actions-outside-gap-x)),
+    calc(-100% - var(--nf-node-actions-outside-gap-y))
+  );
+}
+
+.nf-node-actions__btn {
+  height: var(--nf-node-actions-h);
+  padding: 0 var(--nf-node-actions-pad-x);
+  border-radius: var(--nf-radius-sm);
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nf-node-actions-gap);
+  font-size: var(--nf-node-actions-font-size);
+  font-weight: 600;
+  font-family: var(--nf-font);
+  cursor: pointer;
+  box-shadow: var(--nf-node-actions-shadow);
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.nf-node-actions__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nf-node-actions__btn--primary {
+  background: var(--nf-accent-blue);
+  color: var(--color-text-white);
+}
+
+.nf-node-actions__btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--nf-accent-blue) 86%, var(--nf-bg-sidebar));
+}
+
+.nf-node-actions__btn--secondary {
+  background: var(--nf-bg-node);
+  border-color: var(--nf-border-inner);
+  color: var(--nf-text-primary);
+}
+
+.nf-node-actions__btn--secondary:hover:not(:disabled) {
+  background: var(--nf-bg-muted);
+}
+
+.nf-node-actions__icon {
+  width: var(--nf-node-actions-icon);
+  height: var(--nf-node-actions-icon);
+  flex-shrink: 0;
 }
 
 /* Top-left name/logo area — Figma layout */

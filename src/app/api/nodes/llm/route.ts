@@ -10,9 +10,18 @@ const schema = z.object({
   imageUrls: z.array(z.string()).optional(),
 })
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+    ),
+  ])
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const [user, authError] = await authenticateUser()
+    const [, authError] = await authenticateUser()
     if (authError) return authError
 
     const body = await req.json()
@@ -28,13 +37,15 @@ export async function POST(req: NextRequest) {
       systemPrompt: parsed.systemPrompt,
       userMessage: parsed.userMessage,
       imageUrls: parsed.imageUrls || [],
-      // No runId/nodeId for standalone execution — task handles missing gracefully
       runId: '__standalone__',
       nodeId: '__standalone__',
     })
 
-    // Poll for result
-    const result = await runs.poll(handle.id, { pollIntervalMs: 1000 })
+    const result = await withTimeout(
+      runs.poll(handle.id, { pollIntervalMs: 500 }),
+      90_000,
+      'LLM task'
+    )
 
     if (!result.output) {
       return error('LLM task produced no output', 500)
@@ -50,3 +61,4 @@ export async function POST(req: NextRequest) {
 }
 
 export const runtime = 'nodejs'
+export const maxDuration = 120

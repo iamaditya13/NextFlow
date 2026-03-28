@@ -99,6 +99,29 @@ function getImageUrlsForNode(
     .filter((u): u is string => typeof u === 'string' && u.length > 0)
 }
 
+// ── Timeout-aware fetch ──────────────────────────────────────────────────────
+
+const NODE_FETCH_TIMEOUT_MS = 120_000 // 2 minutes — matches API route maxDuration
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = NODE_FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(`Request to ${url} timed out after ${timeoutMs / 1000}s`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 // ── Per-node execution ────────────────────────────────────────────────────────
 
 async function executeNode(
@@ -141,7 +164,7 @@ async function executeNode(
         getInputForHandle(node.id, 'height_percent', edges, outputs)
       )
 
-      const res = await fetch('/api/nodes/crop-image', {
+      const res = await fetchWithTimeout('/api/nodes/crop-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -170,7 +193,7 @@ async function executeNode(
       const timestampInput = getInputForHandle(node.id, 'timestamp', edges, outputs)
       const timestamp = getInputString(timestampInput)
 
-      const res = await fetch('/api/nodes/extract-frame', {
+      const res = await fetchWithTimeout('/api/nodes/extract-frame', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -207,7 +230,7 @@ async function executeNode(
         throw new Error(`LLM "${node.data.label}": no user message or images provided`)
       }
 
-      const res = await fetch('/api/nodes/llm', {
+      const res = await fetchWithTimeout('/api/nodes/llm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

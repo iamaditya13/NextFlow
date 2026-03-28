@@ -3,6 +3,14 @@
 import { Handle, Position } from '@xyflow/react'
 import { X } from 'lucide-react'
 
+interface TextNodeData {
+  label?: string
+  text?: string
+  executionStatus?: string
+  onDelete?: () => void
+  onUpdateData?: (updates: Record<string, unknown>) => void
+}
+
 function getStatusClass(status: string) {
   if (status === 'running') return 'nf-node--running'
   if (status === 'success') return 'nf-node--success'
@@ -10,7 +18,7 @@ function getStatusClass(status: string) {
   return ''
 }
 
-export function TextNode({ data, selected }: any) {
+export function TextNode({ data, selected }: { data: TextNodeData; selected?: boolean }) {
   const status = (data.executionStatus || 'idle').toLowerCase()
 
   return (

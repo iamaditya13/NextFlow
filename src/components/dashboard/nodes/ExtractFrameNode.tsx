@@ -2,7 +2,17 @@
 
 import { useState } from 'react'
 import { Handle, Position, useNodeConnections } from '@xyflow/react'
-import { ChevronRight, Film, Loader2, X } from 'lucide-react'
+import { ChevronRight, X } from 'lucide-react'
+
+interface ExtractFrameNodeData {
+  label?: string
+  timestamp?: string
+  executionStatus?: string
+  nodeOutput?: { url?: string; error?: string }
+  onDelete?: () => void
+  onUpdateData?: (updates: Record<string, unknown>) => void
+  onRun?: () => void
+}
 
 function getStatusClass(status: string) {
   if (status === 'running') return 'nf-node--running'
@@ -11,9 +21,8 @@ function getStatusClass(status: string) {
   return ''
 }
 
-export function ExtractFrameNode({ data, selected }: any) {
+export function ExtractFrameNode({ data, selected }: { data: ExtractFrameNodeData; selected?: boolean }) {
   const status = (data.executionStatus || 'idle').toLowerCase()
-  const isRunning = status === 'running'
   const [showSettings, setShowSettings] = useState(false)
 
   const timestampConnections = useNodeConnections({ handleType: 'target', handleId: 'timestamp' })
@@ -35,7 +44,7 @@ export function ExtractFrameNode({ data, selected }: any) {
       <div className="nf-node__body">
         {/* Preview */}
         {data.nodeOutput?.url ? (
-          <img src={data.nodeOutput.url} alt="Extracted frame" className="nf-node__preview" />
+          <img src={data.nodeOutput.url} alt="Extracted frame" className="nf-node__preview" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3' }} />
         ) : (
           <div className="nf-node__preview-area">
             <p>Results will appear here</p>
@@ -67,18 +76,6 @@ export function ExtractFrameNode({ data, selected }: any) {
             />
           </div>
         )}
-
-        <button
-          className={`nf-node__btn ${isRunning ? 'nf-node__btn--loading' : ''}`}
-          onClick={data.onRun}
-          disabled={isRunning}
-        >
-          {isRunning ? (
-            <><Loader2 size={14} className="nf-spin" /> Extracting...</>
-          ) : (
-            <><Film size={14} /> Extract</>
-          )}
-        </button>
 
         {data.nodeOutput?.error && (
           <div className="nf-node__result nf-node__result--error">{data.nodeOutput.error}</div>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Handle, Position, useNodeConnections } from '@xyflow/react'
-import { Bot, ChevronRight, Loader2, Play, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, X } from 'lucide-react'
 
 const MODELS = [
   { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
@@ -11,6 +11,18 @@ const MODELS = [
   { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
 ]
 
+interface LLMNodeData {
+  label?: string
+  model?: string
+  userMessage?: string
+  systemPrompt?: string
+  executionStatus?: string
+  nodeOutput?: { text?: string; error?: string; waitingText?: string }
+  onDelete?: () => void
+  onUpdateData?: (updates: Record<string, unknown>) => void
+  onRun?: () => void
+}
+
 function getStatusClass(status: string) {
   if (status === 'running') return 'nf-node--running'
   if (status === 'success') return 'nf-node--success'
@@ -18,9 +30,8 @@ function getStatusClass(status: string) {
   return ''
 }
 
-export function LLMNode({ data, selected }: any) {
+export function LLMNode({ data, selected }: { data: LLMNodeData; selected?: boolean }) {
   const status = (data.executionStatus || 'idle').toLowerCase()
-  const isRunning = status === 'running'
   const [showSettings, setShowSettings] = useState(false)
 
   const systemPromptConnections = useNodeConnections({ handleType: 'target', handleId: 'system_prompt' })
@@ -62,16 +73,22 @@ export function LLMNode({ data, selected }: any) {
         </div>
 
         {/* Model selector — Figma: field row with label */}
-        <div className="nf-node__field">
+        <div className="nf-node__field nf-node__field--divider">
           <span className="nf-node__label">Model</span>
-          <select
-            className="nf-node__select"
-            value={data.model || 'gemini-1.5-flash'}
-            onChange={(e) => data.onUpdateData?.({ model: e.target.value })}
-            style={{ flex: 1 }}
-          >
-            {MODELS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
+          <div className="nf-node__select-wrap">
+            <select
+              className="nf-node__select nf-node__select--with-icon"
+              value={data.model || 'gemini-1.5-flash'}
+              onChange={(e) => data.onUpdateData?.({ model: e.target.value })}
+            >
+              {MODELS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="nf-node__select-indicator" size={12} />
+          </div>
         </div>
 
         {/* Prompt area */}
@@ -112,18 +129,6 @@ export function LLMNode({ data, selected }: any) {
           </div>
         )}
 
-        {/* Run button */}
-        <button
-          className={`nf-node__btn ${isRunning ? 'nf-node__btn--loading' : ''}`}
-          onClick={data.onRun}
-          disabled={isRunning}
-        >
-          {isRunning ? (
-            <><Loader2 size={14} className="nf-spin" /> Running...</>
-          ) : (
-            <><Bot size={14} /> Run</>
-          )}
-        </button>
       </div>
 
       <Handle type="source" position={Position.Right} id="output" className="nf-handle nf-handle--text" style={{ top: '50%' }} />

@@ -29,7 +29,7 @@ export async function POST(
     }
 
     const workflowData = workflow.data as { nodes?: unknown[]; edges?: unknown[] }
-    const nodes = (workflowData.nodes || []) as Array<{ id: string; type: string; data: unknown }>
+    const nodes = (workflowData.nodes || []) as Array<{ id: string; type: string; data: Record<string, unknown> }>
     const edges = (workflowData.edges || []) as Array<{
       id: string
       source: string

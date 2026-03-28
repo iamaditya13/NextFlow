@@ -8,9 +8,18 @@ const schema = z.object({
   timestamp: z.string().default('50%'),
 })
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+    ),
+  ])
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const [user, authError] = await authenticateUser()
+    const [, authError] = await authenticateUser()
     if (authError) return authError
 
     const body = await req.json()
@@ -28,7 +37,11 @@ export async function POST(req: NextRequest) {
       nodeId: '__standalone__',
     })
 
-    const result = await runs.poll(handle.id, { pollIntervalMs: 300 })
+    const result = await withTimeout(
+      runs.poll(handle.id, { pollIntervalMs: 300 }),
+      90_000,
+      'Extract frame task'
+    )
 
     if (!result.output) {
       return error('Extract frame task produced no output', 500)
@@ -44,3 +57,4 @@ export async function POST(req: NextRequest) {
 }
 
 export const runtime = 'nodejs'
+export const maxDuration = 120

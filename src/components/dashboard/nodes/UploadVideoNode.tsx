@@ -5,6 +5,16 @@ import { Upload, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { uploadFileToTransloadit } from './uploadToTransloaditClient'
 
+interface UploadVideoNodeData {
+  label?: string
+  fileUrl?: string
+  fileName?: string
+  uploadError?: string
+  executionStatus?: string
+  onDelete?: () => void
+  onUpdateData?: (updates: Record<string, unknown>) => void
+}
+
 function getStatusClass(status: string) {
   if (status === 'running') return 'nf-node--running'
   if (status === 'success') return 'nf-node--success'
@@ -12,7 +22,7 @@ function getStatusClass(status: string) {
   return ''
 }
 
-export function UploadVideoNode({ data, selected }: any) {
+export function UploadVideoNode({ data, selected }: { data: UploadVideoNodeData; selected?: boolean }) {
   const status = (data.executionStatus || 'idle').toLowerCase()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [isUploading, setIsUploading] = useState(false)

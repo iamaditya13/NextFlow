@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Info,
   Pencil,
-  Play,
   RefreshCw,
   Upload,
   X,
@@ -66,24 +65,6 @@ export function KreaImageNode({ data, selected }: NodeProps) {
           <Info className="w-3 h-3 dark:text-[#737373] text-gray-400" />
         </div>
       </div>
-
-      {/* Run node button — shown when selected */}
-      {selected && (
-        <div className="absolute -top-14 left-0 flex items-center gap-2 pointer-events-auto">
-          <button
-            type="button"
-            onClick={() => nodeData.onRun?.()}
-            className="flex items-center gap-1.5 h-6 px-2 rounded-md
-                       dark:bg-[#1c1c1c] dark:text-white bg-white text-gray-900
-                       text-[12px] font-medium
-                       dark:border-white/10 border-black/10 border
-                       hover:opacity-80 transition-opacity"
-          >
-            <Play className="w-3 h-3" />
-            <span>Run node</span>
-          </button>
-        </div>
-      )}
 
       {/* Node card */}
       <div

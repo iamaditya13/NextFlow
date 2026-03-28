@@ -10,6 +10,7 @@ import {
   type NodeTypes,
   type Connection,
   type EdgeTypes,
+  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   addEdge,
@@ -47,12 +48,13 @@ import { StudioShell } from './StudioShell'
 import { ThemeToggle } from './ThemeToggle'
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal'
 import { NodePickerPopup } from './NodePickerPopup'
-import { RightPanel } from './RightPanel'
+import { HistorySidebar } from './HistorySidebar'
 import { PresetsOverlay } from './PresetsOverlay'
 import { AssetsPanel } from './AssetsPanel'
 import { PRESET_WORKFLOWS } from './presetDefinitions'
 import { isConnectionTypeValid } from '@/lib/nodeTypes'
 import { FlowingEdge } from './FlowingEdge'
+import { runWorkflow } from '@/lib/workflowExecutor'
 
 import { TextNode } from './nodes/TextNode'
 import { UploadImageNode } from './nodes/UploadImageNode'
@@ -157,17 +159,152 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
   const [logoMenuOpen, setLogoMenuOpen] = useState(false)
   const [canvasMode, setCanvasMode] = useState<CanvasMode>('select')
   const [isRunning, setIsRunning] = useState(false)
+  const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [presetsOpen, setPresetsOpen] = useState(false)
 
   // Modals / panels
   const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false)
   const [nodePickerOpen, setNodePickerOpen] = useState(false)
   const [nodePickerPos, setNodePickerPos] = useState({ x: 400, y: 300 })
-  const [rightPanelOpen, setRightPanelOpen] = useState(false)
+  const [historySidebarOpen, setHistorySidebarOpen] = useState(false)
   const [assetsPanelOpen, setAssetsPanelOpen] = useState(false)
   const [rightDropdownOpen, setRightDropdownOpen] = useState(false)
   const [spacePanning, setSpacePanning] = useState(false)
   const clipboardRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
+  const hideHoveredNodeToolbarRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+
+  /** Run the full workflow via the client-side DAG executor. */
+  const handleRunWorkflow = useCallback(
+    async (scope: 'full' | 'single' | 'partial' = 'full', selectedNodeIds?: string[]) => {
+      if (isRunning || nodes.length === 0) return
+      setIsRunning(true)
+      setHistorySidebarOpen(true)
+
+      // Snapshot the current workflow to the API so history is persisted
+      let workflowId = flowId ?? null
+      try {
+        if (workflowId) {
+          await fetch(`/api/workflows/${workflowId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: flowName,
+              nodes: nodes.map((n) => ({
+                id: n.id,
+                type: n.type,
+                position: n.position,
+                data: { ...n.data, onDelete: undefined, onUpdateData: undefined, onRun: undefined },
+              })),
+              edges,
+            }),
+          })
+        } else {
+          // Create new workflow in DB
+          const res = await fetch('/api/workflows', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: flowName }),
+          })
+          const json = await res.json() as { success: boolean; data?: { id: string } }
+          if (json.success && json.data?.id) {
+            workflowId = json.data.id
+            // Save nodes/edges to the new workflow
+            await fetch(`/api/workflows/${workflowId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: flowName,
+                nodes: nodes.map((n) => ({
+                  id: n.id,
+                  type: n.type,
+                  position: n.position,
+                  data: { ...n.data, onDelete: undefined, onUpdateData: undefined, onRun: undefined },
+                })),
+                edges,
+              }),
+            })
+          }
+        }
+
+        // Trigger server-side run to create a history entry
+        if (workflowId) {
+          const runRes = await fetch(`/api/workflows/${workflowId}/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scope: scope.toUpperCase(),
+              nodeIds: selectedNodeIds,
+            }),
+          })
+          const runJson = await runRes.json() as { success: boolean; data?: { runId: string } }
+          if (runJson.success && runJson.data?.runId) {
+            setActiveRunId(runJson.data.runId)
+          }
+        }
+      } catch {
+        // Non-critical — continue with client-side execution even if DB save fails
+      }
+
+      const executorNodes = nodes.map((n) => ({
+        id: n.id,
+        type: n.type ?? '',
+        data: n.data as Record<string, unknown>,
+      }))
+      const executorEdges = edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        sourceHandle: e.sourceHandle ?? '',
+        target: e.target,
+        targetHandle: e.targetHandle ?? '',
+      }))
+
+      // For single/partial scope, include selected nodes AND all upstream dependencies
+      // so connected inputs are available when the target node executes.
+      let nodesToRun = executorNodes
+      if (scope !== 'full' && selectedNodeIds && selectedNodeIds.length > 0) {
+        const nodeMap = new Map(executorNodes.map((n) => [n.id, n]))
+        const toRunIds = new Set<string>(selectedNodeIds)
+        const bfsQueue = [...selectedNodeIds]
+        while (bfsQueue.length > 0) {
+          const current = bfsQueue.shift()!
+          for (const edge of executorEdges) {
+            if (edge.target === current && nodeMap.has(edge.source) && !toRunIds.has(edge.source)) {
+              toRunIds.add(edge.source)
+              bfsQueue.push(edge.source)
+            }
+          }
+        }
+        nodesToRun = executorNodes.filter((n) => toRunIds.has(n.id))
+      }
+
+      await runWorkflow(nodesToRun, executorEdges, {
+        onNodeStatus: (nodeId, status) => {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === nodeId
+                ? { ...n, data: { ...n.data, executionStatus: status } }
+                : n
+            )
+          )
+        },
+        onNodeOutput: (nodeId, output) => {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === nodeId
+                ? { ...n, data: { ...n.data, nodeOutput: output } }
+                : n
+            )
+          )
+        },
+        onComplete: () => {
+          setIsRunning(false)
+        },
+      })
+
+      setIsRunning(false)
+    },
+    [isRunning, nodes, edges, flowName, flowId, setNodes]
+  )
 
   // Enhance nodes with callbacks at render time
   const enhancedNodes = useMemo(
@@ -188,24 +325,53 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
                 n.id === node.id ? { ...n, data: { ...n.data, ...updates } } : n
               )
             ),
+          onRun: () => void handleRunWorkflow('single', [node.id]),
         },
       })),
-    [nodes, setNodes, setEdges]
+    [nodes, setNodes, setEdges, handleRunWorkflow]
   )
 
-  // Single selected node for context toolbar
+  const clearHoveredToolbarHide = useCallback(() => {
+    if (hideHoveredNodeToolbarRef.current !== null) {
+      window.clearTimeout(hideHoveredNodeToolbarRef.current)
+      hideHoveredNodeToolbarRef.current = null
+    }
+  }, [])
+
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
+
+  const scheduleHoveredToolbarHide = useCallback(
+    (nodeId: string) => {
+      clearHoveredToolbarHide()
+      hideHoveredNodeToolbarRef.current = window.setTimeout(() => {
+        setHoveredNodeId((current) => (current === nodeId ? null : current))
+        hideHoveredNodeToolbarRef.current = null
+      }, 100)
+    },
+    [clearHoveredToolbarHide]
+  )
+
+  useEffect(
+    () => () => {
+      clearHoveredToolbarHide()
+    },
+    [clearHoveredToolbarHide]
+  )
+
+  // Hovered / selected node for context toolbar
   const selectedNodes = nodes.filter((n) => n.selected)
   const singleSelectedNode = selectedNodes.length === 1 ? selectedNodes[0] : null
+  const hoveredNode = hoveredNodeId ? nodes.find((n) => n.id === hoveredNodeId) ?? null : null
+  const toolbarNode = hoveredNode ?? singleSelectedNode
 
   const nodeToolbarPos = useMemo(() => {
-    if (!singleSelectedNode) return null
-    const nodeW = (singleSelectedNode as Node & { measured?: { width?: number } }).measured?.width ?? 200
+    if (!toolbarNode) return null
     const screen = flowToScreenPosition({
-      x: singleSelectedNode.position.x + nodeW / 2,
-      y: singleSelectedNode.position.y,
+      x: toolbarNode.position.x,
+      y: toolbarNode.position.y,
     })
-    return { x: screen.x, y: screen.y - 52 }
-  }, [singleSelectedNode, flowToScreenPosition])
+    return { x: screen.x, y: screen.y - 42 }
+  }, [toolbarNode, flowToScreenPosition])
 
   const handleConnect = useCallback(
     (connection: Connection) => {
@@ -243,6 +409,16 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
     [nodes, edges, setEdges, pushHistory]
   )
 
+  const NODE_LABELS: Record<string, string> = {
+    text: 'Text',
+    uploadImage: 'Upload Image',
+    uploadVideo: 'Upload Video',
+    llm: 'LLM',
+    cropImage: 'Crop Image',
+    extractFrame: 'Extract Frame',
+    kreaImage: 'Image Generator',
+  }
+
   const addNodeToCanvas = useCallback(
     (type: string) => {
       const id = `${type}-${Date.now()}`
@@ -254,7 +430,7 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
         id,
         type,
         position,
-        data: { label: type },
+        data: { label: NODE_LABELS[type] ?? type },
       }
       setNodes((nds) => {
         const updated = [...nds, newNode]
@@ -285,7 +461,7 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
       if (nodeType) {
         const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
         const id = `${nodeType}-${Date.now()}`
-        const newNode: Node = { id, type: nodeType, position, data: { label: nodeType } }
+        const newNode: Node = { id, type: nodeType, position, data: { label: NODE_LABELS[nodeType] ?? nodeType } }
         setNodes((nds) => {
           const updated = [...nds, newNode]
           pushHistory(updated, edges)
@@ -329,6 +505,53 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
       // Ignore localStorage failures
     }
   }, [flowName, nodes, edges])
+
+  const importInputRef = useRef<HTMLInputElement | null>(null)
+
+  const exportWorkflow = useCallback(() => {
+    const payload = {
+      name: flowName,
+      exportedAt: new Date().toISOString(),
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        type: n.type,
+        position: n.position,
+        data: { ...n.data, onDelete: undefined, onUpdateData: undefined, onRun: undefined },
+      })),
+      edges,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${flowName.replace(/\s+/g, '-').toLowerCase()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    setLogoMenuOpen(false)
+  }, [flowName, nodes, edges])
+
+  const importWorkflow = useCallback((file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string) as {
+          name?: string
+          nodes?: Node[]
+          edges?: Edge[]
+        }
+        if (json.name) setFlowName(json.name)
+        const importedNodes = (json.nodes ?? []) as Node[]
+        const importedEdges = (json.edges ?? []) as Edge[]
+        setNodes(importedNodes)
+        setEdges(importedEdges)
+        pushHistory(importedNodes, importedEdges)
+      } catch {
+        // Invalid JSON — ignore silently
+      }
+    }
+    reader.readAsText(file)
+    setLogoMenuOpen(false)
+  }, [setNodes, setEdges, pushHistory])
 
   const deselectAllNodes = useCallback(() => {
     setNodes((nds) =>
@@ -495,17 +718,17 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
         return
       }
 
-      // Ctrl+Alt+S → Version History panel
+      // Ctrl+Alt+S → Run History sidebar
       if (ctrl && alt && key === 's') {
         e.preventDefault()
-        setRightPanelOpen((o) => !o)
+        setHistorySidebarOpen((o) => !o)
         return
       }
 
       if (ctrl && key === 'c') {
         e.preventDefault()
         if (e.shiftKey) {
-          setRightPanelOpen((open) => !open)
+          setHistorySidebarOpen((open) => !open)
           return
         }
         copySelectedNodes()
@@ -536,7 +759,7 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
 
       if (ctrl && key === 'enter') {
         e.preventDefault()
-        setIsRunning(true)
+        void handleRunWorkflow('full')
         return
       }
 
@@ -614,6 +837,7 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
     deselectAllNodes,
     selectAllNodes,
     saveCanvasDraft,
+    handleRunWorkflow,
     zoomIn,
     zoomOut,
   ])
@@ -643,6 +867,30 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
+            onNodeMouseEnter={(_, node) => {
+              clearHoveredToolbarHide()
+              setHoveredNodeId(node.id)
+            }}
+            onNodeMouseLeave={(event, node) => {
+              const relatedTarget = event.relatedTarget as HTMLElement | null
+              if (relatedTarget?.closest('[data-node-context-toolbar="true"]')) return
+              scheduleHoveredToolbarHide(node.id)
+            }}
+            isValidConnection={(connection) => {
+              if (!connection.source || !connection.target) return false
+              const sourceNode = nodes.find((n) => n.id === connection.source)
+              if (
+                sourceNode &&
+                connection.targetHandle &&
+                !isConnectionTypeValid(sourceNode.type || '', connection.targetHandle)
+              ) {
+                return false
+              }
+              return !wouldCreateCycle(nodes, edges, {
+                source: connection.source,
+                target: connection.target,
+              })
+            }}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             deleteKeyCode={['Backspace', 'Delete']}
@@ -660,6 +908,16 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
               color={isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.12)'}
               gap={20}
               size={1.5}
+            />
+            <MiniMap
+              position="bottom-right"
+              style={{
+                background: isDark ? '#1c1c1c' : '#f5f5f5',
+                border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)',
+                borderRadius: 8,
+              }}
+              nodeColor={isDark ? '#404040' : '#d4d4d4'}
+              maskColor={isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)'}
             />
           </ReactFlow>
 
@@ -717,8 +975,8 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
                       {([
                         { Icon: ArrowLeft, label: 'Back', action: () => { setLogoMenuOpen(false); router.push('/nodes') } },
                         { Icon: AppWindow, label: 'Turn Into App', action: () => setLogoMenuOpen(false) },
-                        { Icon: Upload, label: 'Import', action: () => setLogoMenuOpen(false) },
-                        { Icon: Download, label: 'Export', action: () => setLogoMenuOpen(false) },
+                        { Icon: Upload, label: 'Import', action: () => { importInputRef.current?.click() } },
+                        { Icon: Download, label: 'Export', action: exportWorkflow },
                         { Icon: Folders, label: 'Workspaces', action: () => setLogoMenuOpen(false) },
                       ] as const).map((item) => (
                         <button
@@ -779,7 +1037,9 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
                     type="button"
                     className="flex items-center justify-center w-9 h-9
                                dark:hover:bg-white/5 hover:bg-black/5"
-                    onClick={() => setIsRunning(!isRunning)}
+                    onClick={() => void handleRunWorkflow('full')}
+                    disabled={isRunning}
+                    title="Run full workflow"
                   >
                     <Play className="w-4 h-4 dark:text-white text-gray-900" />
                   </button>
@@ -810,7 +1070,7 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          setRightPanelOpen(!rightPanelOpen)
+                          setHistorySidebarOpen(!historySidebarOpen)
                           setRightDropdownOpen(false)
                         }}
                         className="w-full flex items-center justify-between px-4 py-2.5
@@ -819,7 +1079,7 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
                         <div className="flex items-center gap-3">
                           <History className="w-4 h-4 dark:text-white/60 text-gray-500" />
                           <span className="text-[13px] dark:text-white text-gray-900">
-                            Version History
+                            Run History
                           </span>
                         </div>
                         <span className="text-[10px] dark:text-white/30 text-gray-400 font-mono">
@@ -867,34 +1127,42 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
               </div>
             )}
 
-            {/* Node context toolbar — shown when a single node is selected */}
+            {/* Node context toolbar — shown for hovered node or single selected node */}
             {nodeToolbarPos && (
               <div
-                className="absolute z-20 pointer-events-auto flex flex-col items-end gap-1"
+                data-node-context-toolbar="true"
+                className="absolute z-20 pointer-events-auto flex flex-col items-start gap-1"
                 style={{
                   left: nodeToolbarPos.x,
                   top: nodeToolbarPos.y,
-                  transform: 'translateX(-50%)',
+                }}
+                onMouseEnter={clearHoveredToolbarHide}
+                onMouseLeave={() => {
+                  if (toolbarNode) scheduleHoveredToolbarHide(toolbarNode.id)
                 }}
               >
                 <button
                   type="button"
-                  onClick={() => setIsRunning(true)}
+                  onClick={() => void handleRunWorkflow('full')}
+                  disabled={isRunning}
                   className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[12px] font-medium
-                             bg-[#0080ff] text-white shadow-md hover:bg-[#006edb] transition-colors"
+                             bg-[#0080ff] text-white shadow-md hover:bg-[#006edb] transition-colors
+                             disabled:opacity-50"
                 >
                   <Play className="w-3 h-3 fill-white" />
                   Run workflow
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    // Run only this node (stub — wire up executor when ready)
-                  }}
+                  onClick={() =>
+                    toolbarNode &&
+                    void handleRunWorkflow('single', [toolbarNode.id])
+                  }
+                  disabled={isRunning}
                   className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[12px] font-medium
                              dark:bg-[#1c1c1c] dark:border dark:border-white/10 dark:text-white
                              bg-white border border-black/10 text-gray-900
-                             shadow-md hover:opacity-80 transition-opacity"
+                             shadow-md hover:opacity-80 transition-opacity disabled:opacity-50"
                 >
                   <Play className="w-3 h-3 dark:fill-white fill-gray-900" />
                   Run node
@@ -1037,7 +1305,7 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
                          dark:bg-[#171717] dark:border dark:border-white/10
                          bg-white border border-black/10
                          flex items-center justify-center
-                         ${rightPanelOpen || assetsPanelOpen ? 'right-[272px]' : 'right-4'}`}
+                         ${historySidebarOpen || assetsPanelOpen ? 'right-[272px]' : 'right-4'}`}
             >
               <Bot className="w-[30px] h-[30px] dark:text-white text-gray-900" />
             </button>
@@ -1061,14 +1329,27 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
               onSelectPreset={(tmpl) => loadPreset(tmpl.title)}
             />
           )}
+
+          {/* Hidden import file input */}
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) importWorkflow(file)
+              e.target.value = ''
+            }}
+          />
         </div>
 
-        {/* Right panel: Version History */}
-        <RightPanel
-          open={rightPanelOpen}
-          nodes={nodes}
-          edges={edges}
-          versionHistory={[]}
+        {/* Right panel: Run History */}
+        <HistorySidebar
+          workflowId={flowId ?? null}
+          isOpen={historySidebarOpen}
+          onToggle={() => setHistorySidebarOpen((o) => !o)}
+          activeRunId={activeRunId}
         />
 
         {/* Right panel: Assets */}
@@ -1085,7 +1366,7 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
               id,
               type: 'uploadImage',
               position,
-              data: { label: 'uploadImage', fileUrl: src },
+              data: { label: 'Upload Image', fileUrl: src },
             }
             setNodes((nds) => {
               const updated = [...nds, newNode]

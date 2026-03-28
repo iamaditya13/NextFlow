@@ -41,6 +41,18 @@ import { TextNode } from './nodes/TextNode'
 import { UploadImageNode } from './nodes/UploadImageNode'
 import { UploadVideoNode } from './nodes/UploadVideoNode'
 import { KreaImageNode } from './nodes/KreaImageNode'
+import { Play } from 'lucide-react'
+
+// ── Human-readable node labels ──
+const NODE_LABELS: Record<string, string> = {
+  text: 'Text',
+  uploadImage: 'Upload Image',
+  uploadVideo: 'Upload Video',
+  llm: 'LLM',
+  cropImage: 'Crop Image',
+  extractFrame: 'Extract Frame',
+  kreaImage: 'Image Generator',
+}
 
 // ── Node types ──
 const nodeTypes: NodeTypes = {
@@ -107,6 +119,13 @@ interface DashboardClientProps {
   initialRuns: unknown[]
 }
 
+type CanvasFlowHelpers = {
+  screenToFlowPosition: (point: { x: number; y: number }) => { x: number; y: number }
+  flowToScreenPosition: (point: { x: number; y: number }) => { x: number; y: number }
+  zoomIn?: () => void
+  zoomOut?: () => void
+}
+
 export function DashboardClient({
   userId,
   initialWorkflows,
@@ -135,7 +154,7 @@ export function DashboardClient({
   } | null>(null)
   const [showPresets, setShowPresets] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
-  const [reactFlowInstance, setReactFlowInstance] = useState<unknown>(null)
+  const [reactFlowInstance, setReactFlowInstance] = useState<CanvasFlowHelpers | null>(null)
   const [nodePicker, setNodePicker] = useState<{
     screenX: number
     screenY: number
@@ -149,8 +168,54 @@ export function DashboardClient({
 
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastSavedRef = useRef<string>('')
+  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const hideHoveredToolbarRef = useRef<NodeJS.Timeout | null>(null)
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
 
   const isCanvasEmpty = nodes.length === 0
+  const selectedNodes = nodes.filter((n) => n.selected)
+  const singleSelectedNode = selectedNodes.length === 1 ? selectedNodes[0] : null
+  const hoveredNode = hoveredNodeId ? nodes.find((n) => n.id === hoveredNodeId) ?? null : null
+  const actionNode = hoveredNode ?? singleSelectedNode
+  const actionNodeIsStarting = useMemo(() => {
+    if (!actionNode) return false
+    return !edges.some((edge) => edge.target === actionNode.id)
+  }, [actionNode, edges])
+
+  const clearHideHoveredToolbar = useCallback(() => {
+    if (hideHoveredToolbarRef.current !== null) {
+      clearTimeout(hideHoveredToolbarRef.current)
+      hideHoveredToolbarRef.current = null
+    }
+  }, [])
+
+  const scheduleHideHoveredToolbar = useCallback(
+    (nodeId: string) => {
+      clearHideHoveredToolbar()
+      hideHoveredToolbarRef.current = setTimeout(() => {
+        setHoveredNodeId((current) => (current === nodeId ? null : current))
+        hideHoveredToolbarRef.current = null
+      }, 100)
+    },
+    [clearHideHoveredToolbar]
+  )
+
+  useEffect(
+    () => () => {
+      clearHideHoveredToolbar()
+    },
+    [clearHideHoveredToolbar]
+  )
+
+  const actionToolbarPos = useMemo(() => {
+    if (!actionNode || !reactFlowInstance || !canvasRef.current) return null
+    const screen = reactFlowInstance.flowToScreenPosition({
+      x: actionNode.position.x,
+      y: actionNode.position.y,
+    })
+    const rect = canvasRef.current.getBoundingClientRect()
+    return { x: screen.x - rect.left, y: screen.y - rect.top }
+  }, [actionNode, reactFlowInstance])
 
   const shouldIgnoreDoubleClick = (target: HTMLElement) =>
     Boolean(
@@ -298,7 +363,7 @@ export function DashboardClient({
           prompt: '',
           model: normalizedType === 'kreaImage' ? 'krea-1' : 'gemini-2.0-flash',
           aspectRatio: '1:1',
-          label: normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1),
+          label: NODE_LABELS[normalizedType] ?? normalizedType,
         },
       }
       setNodes((nds) => [...nds, newNode])
@@ -321,7 +386,7 @@ export function DashboardClient({
           prompt: '',
           model: normalizedType === 'kreaImage' ? 'krea-1' : 'gemini-2.0-flash',
           aspectRatio: '1:1',
-          label: normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1),
+          label: NODE_LABELS[normalizedType] ?? normalizedType,
         },
       }
       setNodes((nds) => [...nds, newNode])
@@ -346,11 +411,7 @@ export function DashboardClient({
   const openNodePicker = useCallback(
     (screenX: number, screenY: number) => {
       if (!reactFlowInstance) return
-      const flowPos = (
-        reactFlowInstance as {
-          screenToFlowPosition: (p: { x: number; y: number }) => { x: number; y: number }
-        }
-      ).screenToFlowPosition({ x: screenX, y: screenY })
+      const flowPos = reactFlowInstance.screenToFlowPosition({ x: screenX, y: screenY })
       setNodePicker({ screenX, screenY, flowX: flowPos.x, flowY: flowPos.y })
     },
     [reactFlowInstance]
@@ -362,11 +423,10 @@ export function DashboardClient({
       event.preventDefault()
       const type = event.dataTransfer.getData('application/reactflow')
       if (!type || !reactFlowInstance) return
-      const position = (
-        reactFlowInstance as {
-          screenToFlowPosition: (p: { x: number; y: number }) => { x: number; y: number }
-        }
-      ).screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      const position = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      })
       const normalizedType = normalizeNodeType(type)
       const newNode: Node = {
         id: `${normalizedType}-${Date.now()}`,
@@ -376,7 +436,7 @@ export function DashboardClient({
           text: '',
           prompt: '',
           model: normalizedType === 'kreaImage' ? 'krea-1' : 'gemini-2.0-flash',
-          label: normalizedType,
+          label: NODE_LABELS[normalizedType] ?? normalizedType,
         },
       }
       setNodes((nds) => [...nds, newNode])
@@ -415,26 +475,76 @@ export function DashboardClient({
   // ── Execution ──
   const runSingleNode = useCallback(
     async (nodeId: string) => {
-      if (!currentWorkflowId) return
-      store.setActiveRun('pending')
-      store.setNodeStatus(nodeId, 'RUNNING')
-      try {
-        const res = await fetch(`/api/workflows/${currentWorkflowId}/run`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scope: 'SINGLE', nodeIds: [nodeId] }),
-        })
-        const json = await res.json()
-        if (json.success && json.data?.runId) {
-          store.setActiveRun(json.data.runId)
-          pollRun(json.data.runId)
+      if (isExecuting) return
+
+      // Collect the target node + all upstream dependencies via BFS
+      const nodeMap = new Map(nodes.map((n) => [n.id, n]))
+      const nodesToRunIds = new Set<string>([nodeId])
+      const bfsQueue = [nodeId]
+      while (bfsQueue.length > 0) {
+        const current = bfsQueue.shift()!
+        for (const edge of edges) {
+          if (
+            edge.target === current &&
+            nodeMap.has(edge.source) &&
+            !nodesToRunIds.has(edge.source)
+          ) {
+            nodesToRunIds.add(edge.source)
+            bfsQueue.push(edge.source)
+          }
         }
+      }
+
+      const filteredNodes = nodes.filter((n) => nodesToRunIds.has(n.id))
+
+      setIsExecuting(true)
+      for (const n of filteredNodes) store.setNodeStatus(n.id, 'PENDING')
+
+      try {
+        await runWorkflow(
+          filteredNodes.map((n) => ({
+            id: n.id,
+            type: n.type || '',
+            data: n.data as Record<string, unknown>,
+          })),
+          edges.map((e) => ({
+            id: e.id,
+            source: e.source,
+            sourceHandle: e.sourceHandle || '',
+            target: e.target,
+            targetHandle: e.targetHandle || '',
+          })),
+          {
+            onNodeStatus: (id, status) => {
+              const mapped =
+                status === 'success'
+                  ? ('SUCCESS' as const)
+                  : status === 'failed'
+                    ? ('FAILED' as const)
+                    : status === 'running'
+                      ? ('RUNNING' as const)
+                      : ('PENDING' as const)
+              store.setNodeStatus(id, mapped)
+            },
+            onNodeOutput: (id, output) => {
+              store.setNodeOutput(id, output)
+            },
+            onComplete: ({ failed }) => {
+              setIsExecuting(false)
+              if (failed.length === 0) {
+                toast.success('Node completed successfully')
+              } else {
+                toast.error('Node execution failed')
+              }
+            },
+          }
+        )
       } catch {
-        store.setNodeStatus(nodeId, 'FAILED')
+        setIsExecuting(false)
         toast.error('Execution failed')
       }
     },
-    [currentWorkflowId, store]
+    [nodes, edges, isExecuting, store]
   )
 
   const startExecution = useCallback(
@@ -614,10 +724,7 @@ export function DashboardClient({
         target.tagName === 'SELECT' ||
         (target as HTMLElement).isContentEditable
 
-      const rfInstance = reactFlowInstance as {
-        zoomIn?: () => void
-        zoomOut?: () => void
-      } | null
+      const rfInstance = reactFlowInstance
 
       if (ctrl && event.key === 's') {
         event.preventDefault()
@@ -751,6 +858,7 @@ export function DashboardClient({
     >
       {/* Canvas area */}
       <div
+        ref={canvasRef}
         style={{ flex: 1, position: 'relative', minWidth: 0 }}
         onDrop={onDrop}
         onDragOver={(e) => e.preventDefault()}
@@ -773,10 +881,20 @@ export function DashboardClient({
             event.preventDefault()
             setContextMenu({ x: event.clientX, y: event.clientY, nodeId: node.id })
           }}
+          onNodeMouseEnter={(_, node) => {
+            clearHideHoveredToolbar()
+            setHoveredNodeId(node.id)
+          }}
+          onNodeMouseLeave={(event, node) => {
+            const relatedTarget = event.relatedTarget as HTMLElement | null
+            if (relatedTarget?.closest('[data-node-action-toolbar="true"]')) return
+            scheduleHideHoveredToolbar(node.id)
+          }}
           onPaneClick={() => {
             setContextMenu(null)
             setShowPresets(false)
             setNodePicker(null)
+            setHoveredNodeId(null)
           }}
           onPaneContextMenu={(event) => {
             event.preventDefault()
@@ -815,6 +933,41 @@ export function DashboardClient({
             maskColor={isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.5)'}
           />
         </ReactFlow>
+
+        {/* Node actions toolbar — shown for hovered node or single selected node */}
+        {actionToolbarPos && actionNode && (
+          <div
+            data-node-action-toolbar="true"
+            className="nf-node-actions"
+            style={{
+              left: actionToolbarPos.x,
+              top: actionToolbarPos.y,
+            }}
+            onMouseEnter={clearHideHoveredToolbar}
+            onMouseLeave={() => scheduleHideHoveredToolbar(actionNode.id)}
+          >
+            {actionNodeIsStarting && (
+              <button
+                type="button"
+                onClick={() => void runWorkflowLocal()}
+                disabled={isExecuting}
+                className="nf-node-actions__btn nf-node-actions__btn--primary"
+              >
+                <Play className="nf-node-actions__icon" />
+                Run workflow
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void runSingleNode(actionNode.id)}
+              disabled={isExecuting}
+              className="nf-node-actions__btn nf-node-actions__btn--secondary"
+            >
+              <Play className="nf-node-actions__icon" />
+              Run node
+            </button>
+          </div>
+        )}
 
         {/* Top bar */}
         <CanvasTopBar
