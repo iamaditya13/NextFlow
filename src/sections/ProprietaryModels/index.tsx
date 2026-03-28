@@ -1,6 +1,13 @@
-import { ModelShowcase } from "@/sections/ProprietaryModels/components/ModelShowcase";
+"use client";
 
-const TITLE = "NextFlow 1 - Our ultra-realistic image model";
+import { ModelShowcase } from "@/sections/ProprietaryModels/components/ModelShowcase";
+import { AnimatedWord } from "@/components/AnimatedWord";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
+
+const TITLE = "Krea 1 - Our ultra-realistic image model";
+const titleWords = TITLE.split(" ");
+const titleWordClassName =
+  "text-3xl font-semibold tracking-[-0.45px] leading-9 md:text-5xl md:tracking-[-0.72px] md:leading-[48px]";
 
 function InvestorLogos() {
   return (
@@ -45,6 +52,8 @@ function InvestorLogos() {
 }
 
 export const ProprietaryModels = () => {
+  const { ref: headingRef, visible: headingVisible } = useScrollReveal(0.2);
+
   return (
     <div className="relative max-w-screen-2xl z-10 mx-auto">
       <section className="flex flex-col gap-y-12 mx-auto px-5 md:gap-y-16 md:px-16">
@@ -54,14 +63,31 @@ export const ProprietaryModels = () => {
               Powerful proprietary models
             </div>
             <h2
+              ref={headingRef}
               aria-label={TITLE}
-              className="text-3xl font-semibold tracking-[-0.45px] leading-9 md:text-5xl md:tracking-[-0.72px] md:leading-[48px]"
+              className={titleWordClassName}
             >
-              {TITLE}
+              {titleWords.map((word, wordIndex) => {
+                const wordCharsBefore =
+                  titleWords.slice(0, wordIndex).join("").length + wordIndex;
+                return (
+                  <span
+                    key={`${word}-${wordIndex}`}
+                    className="inline-block mr-2 md:mr-3 align-top"
+                  >
+                    <AnimatedWord
+                      word={word}
+                      className={titleWordClassName}
+                      baseIndex={wordCharsBefore}
+                      visible={headingVisible}
+                    />
+                  </span>
+                );
+              })}
             </h2>
           </div>
           <p className="text-neutral-500 font-medium leading-7 max-w-2xl opacity-100 text-start md:text-end" style={{ fontSize: "19.2px" }}>
-            NextFlow 1 is our proprietary image model. Unlike traditional
+            Krea 1 is our proprietary image model. Unlike traditional
             models, it offers accurate skin textures, dynamic camera angles, and
             expressive styles. Discover an exceptionally artistic latent space.
           </p>

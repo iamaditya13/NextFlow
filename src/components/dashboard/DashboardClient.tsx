@@ -7,6 +7,7 @@ import {
   BackgroundVariant,
   Connection,
   Edge,
+  MiniMap,
   Node,
   NodeTypes,
   ReactFlow,
@@ -16,6 +17,7 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { useWorkflowStore } from '@/stores/workflowStore'
+import { useTheme } from '@/components/theme/theme-provider'
 import {
   NODE_OUTPUT_TYPES,
   HANDLE_ACCEPT_TYPES,
@@ -31,6 +33,7 @@ import { NodePickerPanel } from './NodePickerPanel'
 import { ToastContainer, toast } from './Toast'
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal'
 import { PRESET_WORKFLOWS } from './presetDefinitions'
+import { runWorkflow } from '@/lib/workflowExecutor'
 import { CropImageNode } from './nodes/CropImageNode'
 import { ExtractFrameNode } from './nodes/ExtractFrameNode'
 import { LLMNode } from './nodes/LLMNode'
@@ -50,45 +53,16 @@ const nodeTypes: NodeTypes = {
   kreaImage: KreaImageNode,
 }
 
-// ── Default initial nodes (shown on blank/new workflows) ──
-const DEFAULT_NODES: Node[] = [
-  {
-    id: 'krea-default-1',
-    type: 'kreaImage',
-    position: { x: 120, y: 120 },
-    data: {
-      label: 'Node 1',
-      model: 'krea-1',
-      prompt: '',
-      aspectRatio: '1:1',
-      resolution: '1K',
-    },
-  },
-  {
-    id: 'krea-default-2',
-    type: 'kreaImage',
-    position: { x: 560, y: 120 },
-    data: {
-      label: 'Node 2',
-      model: 'krea-1',
-      prompt: '',
-      aspectRatio: '1:1',
-      resolution: '1K',
-      strength: 80,
-    },
-  },
-]
-
-const DEFAULT_EDGES: Edge[] = [
-  {
-    id: 'krea-default-e1',
-    source: 'krea-default-1',
-    sourceHandle: null,
-    target: 'krea-default-2',
-    targetHandle: 'image-prompt',
-    style: { stroke: '#3b82f6', strokeWidth: 2 },
-  },
-]
+// ── Node type → edge color map ──
+const NODE_TYPE_COLORS: Record<string, string> = {
+  text:         '#F97316',
+  uploadImage:  '#3B82F6',
+  uploadVideo:  '#22C55E',
+  llm:          '#EAB308',
+  extractFrame: '#EC4899',
+  cropImage:    '#A855F7',
+  kreaImage:    '#3B82F6',
+}
 
 // ── Cycle detection ──
 function wouldCreateCycle(
@@ -139,12 +113,10 @@ export function DashboardClient({
   initialWorkflow,
   initialRuns,
 }: DashboardClientProps) {
-  const rawNodes = initialWorkflow?.data?.nodes ?? []
-  const rawEdges = initialWorkflow?.data?.edges ?? []
-
-  // Seed 2 default krea nodes when workflow is empty
-  const initialNodes = rawNodes.length > 0 ? rawNodes : DEFAULT_NODES
-  const initialEdges = rawEdges.length > 0 ? rawEdges : DEFAULT_EDGES
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const initialNodes = initialWorkflow?.data?.nodes ?? []
+  const initialEdges = initialWorkflow?.data?.edges ?? []
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -170,7 +142,10 @@ export function DashboardClient({
     flowX: number
     flowY: number
   } | null>(null)
-  const [currentZoom, setCurrentZoom] = useState(1)
+  const [multiSelectHintDismissed, setMultiSelectHintDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return localStorage.getItem('nf.multiSelectHintDismissed') === '1'
+  })
 
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastSavedRef = useRef<string>('')
@@ -251,10 +226,12 @@ export function DashboardClient({
         toast.error('Circular connections are not allowed')
         return
       }
+      const srcNode = nodes.find((n) => n.id === params.source)
+      const edgeColor = NODE_TYPE_COLORS[srcNode?.type || ''] || '#737373'
       const newEdge = {
         ...params,
-        animated: false,
-        style: { stroke: '#3b82f6', strokeWidth: 2 },
+        animated: true,
+        style: { stroke: edgeColor, strokeWidth: 2 },
       }
       setEdges((eds) => addEdge(newEdge, eds))
       debouncedSave()
@@ -353,6 +330,18 @@ export function DashboardClient({
     },
     [setNodes, nodes, edges, store, debouncedSave]
   )
+
+  // Allow global sidebar tool clicks to add nodes while this canvas is active.
+  useEffect(() => {
+    const onSidebarAddNode = (event: Event) => {
+      const customEvent = event as CustomEvent<{ type?: string }>
+      const nodeType = customEvent.detail?.type
+      if (!nodeType) return
+      addNode(nodeType)
+    }
+    window.addEventListener('nf:add-node', onSidebarAddNode as EventListener)
+    return () => window.removeEventListener('nf:add-node', onSidebarAddNode as EventListener)
+  }, [addNode])
 
   const openNodePicker = useCallback(
     (screenX: number, screenY: number) => {
@@ -483,6 +472,97 @@ export function DashboardClient({
     [currentWorkflowId, isExecuting, nodes, edges, workflowName, store]
   )
 
+  // ── Client-side DAG execution ──────────────────────────────────────────────
+
+  /** Load the Product Marketing Kit Generator preset onto the canvas. */
+  const loadSampleWorkflow = useCallback(() => {
+    const preset = PRESET_WORKFLOWS['Product Marketing Kit Generator']
+    if (!preset) return
+    setNodes(preset.nodes)
+    setEdges(preset.edges)
+    store.pushHistory({ nodes: preset.nodes, edges: preset.edges })
+    store.clearRun()
+    setWorkflowName('Product Marketing Kit Generator')
+    debouncedSave()
+    toast.success('Sample workflow loaded — upload a product image and video, then click Run All')
+  }, [setNodes, setEdges, store, debouncedSave, setWorkflowName])
+
+  /**
+   * Run the current canvas using the client-side DAG executor.
+   * Calls /api/nodes/* routes directly — no server-side WorkflowRun record needed.
+   * Updates node statuses in the Zustand store so all node cards re-render live.
+   */
+  const runWorkflowLocal = useCallback(async () => {
+    if (isExecuting) return
+
+    // Validate: every upload node must have a file
+    const uploadNodes = nodes.filter(
+      (n) => n.type === 'uploadImage' || n.type === 'uploadVideo'
+    )
+    const missing = uploadNodes.filter((n) => !(n.data as Record<string, unknown>).fileUrl)
+    if (missing.length > 0) {
+      const labels = missing
+        .map((n) => (n.data as Record<string, unknown>).label || n.type)
+        .join(', ')
+      toast.error(`Please upload files for: ${labels}`)
+      return
+    }
+
+    setIsExecuting(true)
+    store.clearRun()
+
+    // Reset every node to PENDING so the UI shows a clean slate
+    for (const node of nodes) store.setNodeStatus(node.id, 'PENDING')
+
+    try {
+      await runWorkflow(
+        nodes.map((n) => ({
+          id: n.id,
+          type: n.type || '',
+          data: n.data as Record<string, unknown>,
+        })),
+        edges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          sourceHandle: e.sourceHandle || '',
+          target: e.target,
+          targetHandle: e.targetHandle || '',
+        })),
+        {
+          onNodeStatus: (nodeId, status) => {
+            const mapped =
+              status === 'success'
+                ? ('SUCCESS' as const)
+                : status === 'failed'
+                  ? ('FAILED' as const)
+                  : status === 'running'
+                    ? ('RUNNING' as const)
+                    : ('PENDING' as const)
+            store.setNodeStatus(nodeId, mapped)
+          },
+          onNodeOutput: (nodeId, output) => {
+            store.setNodeOutput(nodeId, output)
+          },
+          onComplete: ({ failed }) => {
+            setIsExecuting(false)
+            if (failed.length === 0) {
+              toast.success('Workflow completed successfully')
+            } else {
+              toast.error(
+                failed.length === nodes.length
+                  ? 'Workflow failed'
+                  : 'Workflow partially completed'
+              )
+            }
+          },
+        }
+      )
+    } catch {
+      setIsExecuting(false)
+      toast.error('Workflow execution failed')
+    }
+  }, [nodes, edges, isExecuting, store])
+
   // ── Polling ──
   const pollRun = useCallback(
     (runId: string) => {
@@ -531,7 +611,13 @@ export function DashboardClient({
       const inInput =
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
-        target.tagName === 'SELECT'
+        target.tagName === 'SELECT' ||
+        (target as HTMLElement).isContentEditable
+
+      const rfInstance = reactFlowInstance as {
+        zoomIn?: () => void
+        zoomOut?: () => void
+      } | null
 
       if (ctrl && event.key === 's') {
         event.preventDefault()
@@ -539,13 +625,29 @@ export function DashboardClient({
         toast.success('Saved')
         return
       }
-      if (ctrl && event.key === 'z') {
+      if (ctrl && event.key === 'z' && !event.shiftKey) {
         event.preventDefault()
-        if (event.shiftKey) {
-          if (store.canRedo()) { store.redo(); setNodes(store.nodes); setEdges(store.edges) }
-        } else {
-          if (store.canUndo()) { store.undo(); setNodes(store.nodes); setEdges(store.edges) }
-        }
+        if (store.canUndo()) { store.undo(); setNodes(store.nodes); setEdges(store.edges) }
+        return
+      }
+      if (ctrl && (event.key === 'Z' || (event.key === 'z' && event.shiftKey) || event.key === 'y')) {
+        event.preventDefault()
+        if (store.canRedo()) { store.redo(); setNodes(store.nodes); setEdges(store.edges) }
+        return
+      }
+      if (ctrl && event.key === 'a') {
+        event.preventDefault()
+        setNodes((nds) => nds.map((n) => ({ ...n, selected: true })))
+        return
+      }
+      if (ctrl && (event.key === '=' || event.key === '+')) {
+        event.preventDefault()
+        rfInstance?.zoomIn?.()
+        return
+      }
+      if (ctrl && event.key === '-') {
+        event.preventDefault()
+        rfInstance?.zoomOut?.()
         return
       }
       if (ctrl && event.key === 'Enter') {
@@ -564,14 +666,17 @@ export function DashboardClient({
         setShowPresets(false)
         setContextMenu(null)
         setNodePicker(null)
+        setNodes((nds) => nds.map((n) => ({ ...n, selected: false })))
         return
       }
       if (!inInput && !ctrl) {
-        if (event.key === 'n' || event.key === 'N' || event.key === 'i' || event.key === 'I') {
+        if (event.key === 'n' || event.key === 'N') {
           isCanvasEmpty ? setShowPresets(true) : openNodePicker(window.innerWidth / 2, window.innerHeight / 2)
         }
+        if (event.key === 'i' || event.key === 'I') addNode('uploadImage')
         if (event.key === 'v' || event.key === 'V') addNode('uploadVideo')
         if (event.key === 'l' || event.key === 'L') addNode('llm')
+        if (event.key === 'e' || event.key === 'E') addNode('kreaImage')
         if (event.key === 'x' || event.key === 'X') store.setCanvasMode('scissor')
         if (event.key === 'Delete' || event.key === 'Backspace') {
           const selected = nodes.filter((n) => n.selected)
@@ -581,7 +686,7 @@ export function DashboardClient({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [debouncedSave, store, setNodes, setEdges, isCanvasEmpty, openNodePicker, nodes, addNode, duplicateNode, deleteNode, startExecution])
+  }, [debouncedSave, store, setNodes, setEdges, isCanvasEmpty, openNodePicker, nodes, addNode, duplicateNode, deleteNode, startExecution, reactFlowInstance])
 
   // ── Export / Import ──
   const exportWorkflow = useCallback(async () => {
@@ -677,7 +782,6 @@ export function DashboardClient({
             event.preventDefault()
             openNodePicker(event.clientX, event.clientY)
           }}
-          onMove={(_, viewport) => setCurrentZoom(viewport.zoom)}
           deleteKeyCode={['Backspace', 'Delete']}
           panOnDrag={panOnDrag as boolean | number[]}
           selectionOnDrag={selectionOnDrag}
@@ -692,7 +796,24 @@ export function DashboardClient({
           }}
           connectionLineStyle={{ stroke: '#3b82f6', strokeWidth: 2 }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#262626" />
+          <Background variant={BackgroundVariant.Dots} gap={18} size={1} color={isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.12)'} />
+          <MiniMap
+            position="bottom-right"
+            pannable
+            zoomable
+            style={{
+              width: 180,
+              height: 110,
+              borderRadius: 10,
+              border: '1px solid var(--nf-border-inner)',
+              background: 'var(--nf-bg-node)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+              right: 16,
+              bottom: 16,
+            }}
+            nodeColor={() => (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.25)')}
+            maskColor={isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.5)'}
+          />
         </ReactFlow>
 
         {/* Top bar */}
@@ -703,7 +824,8 @@ export function DashboardClient({
           saveStatus={store.saveStatus}
           onExport={exportWorkflow}
           onImport={importWorkflow}
-          onRun={() => startExecution('FULL')}
+          onRun={runWorkflowLocal}
+          onLoadSample={loadSampleWorkflow}
           isExecuting={isExecuting}
           onToggleHistory={() => store.toggleRightSidebar()}
           onUndo={() => {
@@ -714,6 +836,7 @@ export function DashboardClient({
           }}
           canUndo={store.canUndo()}
           canRedo={store.canRedo()}
+          onToggleShortcuts={() => setShowShortcuts((v) => !v)}
         />
 
         {/* Empty state */}
@@ -736,14 +859,58 @@ export function DashboardClient({
           />
         )}
 
+        {/* Multi-select hint banner */}
+        {!multiSelectHintDismissed && !isCanvasEmpty && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 76,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '7px 12px',
+              background: 'var(--nf-bg-node)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 'var(--nf-radius-xl)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+              fontSize: 'var(--nf-font-size-xs)',
+              color: 'var(--nf-text-muted)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span>To select multiple nodes, use <strong style={{ color: 'var(--nf-text-secondary)' }}>Ctrl+Drag</strong> or <strong style={{ color: 'var(--nf-text-secondary)' }}>Shift+Click</strong></span>
+            <button
+              type="button"
+              onClick={() => {
+                setMultiSelectHintDismissed(true)
+                localStorage.setItem('nf.multiSelectHintDismissed', '1')
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--nf-text-placeholder)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                padding: 0,
+                lineHeight: 1,
+              }}
+              title="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Bottom toolbar */}
         <CanvasBottomToolbar
           canvasMode={canvasMode}
           onModeChange={(mode) => store.setCanvasMode(mode)}
           onAddNode={() => (isCanvasEmpty ? setShowPresets(true) : addNode('kreaImage'))}
           onPresets={() => setShowPresets(true)}
-          zoom={currentZoom}
-          onToggleShortcuts={() => setShowShortcuts((v) => !v)}
         />
 
         {/* Node picker */}

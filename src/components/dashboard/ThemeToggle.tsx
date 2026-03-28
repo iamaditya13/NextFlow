@@ -1,14 +1,27 @@
 'use client'
 
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/components/theme/theme-provider'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { Moon, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme()
+  const { theme, resolvedTheme, setTheme } = useTheme()
+  const setStoreTheme = useSettingsStore((s) => s.setTheme)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => setMounted(true), [])
+
+  // Keep settingsStore in sync with the resolved theme from ThemeProvider
+  useEffect(() => {
+    if (mounted) setStoreTheme(resolvedTheme)
+  }, [mounted, resolvedTheme, setStoreTheme])
+
+  function toggle() {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    setStoreTheme(next)
+  }
 
   if (!mounted) {
     return (
@@ -25,7 +38,7 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      onClick={toggle}
       className="w-9 h-9 flex items-center justify-center rounded-[10px]
                  dark:bg-[#1c1c1c] bg-white
                  dark:border-white/10 border-black/10 border

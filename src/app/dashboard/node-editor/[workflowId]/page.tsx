@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 
 export default async function WorkflowEditorPage({ params }: { params: Promise<{ workflowId: string }> }) {
   const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
+  if (!userId) redirect('/sign-up')
 
   const { workflowId } = await params
 

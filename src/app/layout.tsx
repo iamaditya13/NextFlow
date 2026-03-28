@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider } from "@/components/theme/theme-provider";
+import { TopLoadingBar } from "@/components/TopLoadingBar";
 import "./globals.css";
 
 const suisseIntl = localFont({
@@ -31,6 +32,7 @@ export default function RootLayout({
       <html lang="en" suppressHydrationWarning className={suisseIntl.variable}>
         <body className={suisseIntl.className}>
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+            <TopLoadingBar />
             {children}
           </ThemeProvider>
         </body>

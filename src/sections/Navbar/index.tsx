@@ -6,6 +6,8 @@ import { DesktopNav } from "@/sections/Navbar/components/DesktopNav";
 import { NavbarActions } from "@/sections/Navbar/components/NavbarActions";
 import { FeaturesDropdown } from "@/sections/Navbar/components/FeaturesDropdown";
 
+const LIGHT_THEME_SWITCH_OFFSET_PX = 120;
+
 export const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [featuresOpen, setFeaturesOpen] = useState(false);
@@ -16,7 +18,11 @@ export const Navbar = () => {
     const onScroll = () => {
       const sentinel = document.getElementById("dark-section-end");
       if (!sentinel) return;
-      setTheme(sentinel.getBoundingClientRect().top <= 0 ? "light" : "dark");
+      setTheme(
+        sentinel.getBoundingClientRect().top <= LIGHT_THEME_SWITCH_OFFSET_PX
+          ? "light"
+          : "dark",
+      );
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();

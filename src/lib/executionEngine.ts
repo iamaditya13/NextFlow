@@ -24,8 +24,32 @@ export async function executeWorkflow(
   selectedNodeIds?: string[],
   existingRunId?: string
 ) {
-  const nodesToRun =
-    scope === 'full' ? nodes : nodes.filter((n) => selectedNodeIds?.includes(n.id))
+  const allNodesById = new Map(nodes.map((node) => [node.id, node]))
+  const selectedIds = new Set(
+    (selectedNodeIds || []).filter((nodeId) => allNodesById.has(nodeId))
+  )
+
+  const nodeIdsToRun = new Set<string>()
+  if (scope === 'full') {
+    for (const node of nodes) nodeIdsToRun.add(node.id)
+  } else {
+    // Always execute selected nodes plus all their upstream dependencies so
+    // connected inputs are available for PARTIAL/SINGLE runs.
+    const queue = [...selectedIds]
+    for (const nodeId of selectedIds) nodeIdsToRun.add(nodeId)
+
+    while (queue.length > 0) {
+      const targetId = queue.shift()!
+      const inboundEdges = edges.filter((edge) => edge.target === targetId)
+      for (const edge of inboundEdges) {
+        if (!allNodesById.has(edge.source) || nodeIdsToRun.has(edge.source)) continue
+        nodeIdsToRun.add(edge.source)
+        queue.push(edge.source)
+      }
+    }
+  }
+
+  const nodesToRun = nodes.filter((node) => nodeIdsToRun.has(node.id))
 
   let run: any
 
@@ -154,8 +178,44 @@ async function executeNode(
   edges: WorkflowEdge[],
   nodeOutputs: Map<string, any>
 ): Promise<any> {
+  const extractString = (input: any): string | undefined => {
+    if (typeof input === 'string') return input
+    if (!input || typeof input !== 'object') return undefined
+    const candidates = [input.text, input.value, input.url, input.fileUrl]
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string') return candidate
+    }
+    return undefined
+  }
+
+  const extractNumber = (input: any): number | undefined => {
+    if (typeof input === 'number' && Number.isFinite(input)) return input
+    if (!input || typeof input !== 'object') return undefined
+    const candidates = [input.value, input.text]
+    for (const candidate of candidates) {
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate
+      if (typeof candidate === 'string') {
+        const parsed = Number(candidate)
+        if (Number.isFinite(parsed)) return parsed
+      }
+    }
+    return undefined
+  }
+
+  const extractUrl = (input: any): string | undefined => {
+    if (typeof input === 'string' && input.length > 0) return input
+    if (!input || typeof input !== 'object') return undefined
+    const candidates = [input.url, input.fileUrl, input.text, input.value]
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.length > 0) return candidate
+    }
+    return undefined
+  }
+
   const getInput = (handleId: string): any => {
-    const edge = edges.find((e) => e.target === node.id && e.targetHandle === handleId)
+    const edge = [...edges]
+      .reverse()
+      .find((e) => e.target === node.id && e.targetHandle === handleId)
     if (!edge) return null
     return nodeOutputs.get(edge.source) || null
   }
@@ -165,9 +225,9 @@ async function executeNode(
       .filter((e) => e.target === node.id && e.targetHandle === 'images')
       .map((e) => {
         const output = nodeOutputs.get(e.source)
-        return output?.url || output?.fileUrl
+        return extractUrl(output)
       })
-      .filter(Boolean)
+      .filter((url): url is string => typeof url === 'string' && url.length > 0)
   }
 
   switch (node.type) {
@@ -215,8 +275,9 @@ async function executeNode(
       const userMessageInput = getInput('user_message')
       const imageUrls = getImageUrls()
 
-      const systemPrompt = systemPromptInput?.text || node.data.systemPrompt || undefined
-      const userMessage = userMessageInput?.text || node.data.userMessage || ''
+      const systemPrompt =
+        extractString(systemPromptInput) || node.data.systemPrompt || undefined
+      const userMessage = extractString(userMessageInput) || node.data.userMessage || ''
 
       if (!userMessage) {
         throw new Error('LLM node: no user message provided')
@@ -254,7 +315,7 @@ async function executeNode(
       const wInput = getInput('width_percent')
       const hInput = getInput('height_percent')
 
-      const imageUrl = imageInput?.url || imageInput?.fileUrl || node.data.fileUrl
+      const imageUrl = extractUrl(imageInput) || node.data.fileUrl
 
       if (!imageUrl) {
         throw new Error('Crop node: no image URL provided')
@@ -262,10 +323,10 @@ async function executeNode(
 
       const result = await tasks.triggerAndWait('crop-image', {
         imageUrl,
-        xPercent: xInput?.value ?? node.data.xPercent ?? 0,
-        yPercent: yInput?.value ?? node.data.yPercent ?? 0,
-        widthPercent: wInput?.value ?? node.data.widthPercent ?? 100,
-        heightPercent: hInput?.value ?? node.data.heightPercent ?? 100,
+        xPercent: extractNumber(xInput) ?? node.data.xPercent ?? 0,
+        yPercent: extractNumber(yInput) ?? node.data.yPercent ?? 0,
+        widthPercent: extractNumber(wInput) ?? node.data.widthPercent ?? 100,
+        heightPercent: extractNumber(hInput) ?? node.data.heightPercent ?? 100,
         runId,
         nodeId: node.id,
       })
@@ -281,7 +342,7 @@ async function executeNode(
       const videoInput = getInput('video_url')
       const timestampInput = getInput('timestamp')
 
-      const videoUrl = videoInput?.url || videoInput?.fileUrl || node.data.fileUrl
+      const videoUrl = extractUrl(videoInput) || node.data.fileUrl
 
       if (!videoUrl) {
         throw new Error('Extract Frame: no video URL provided')
@@ -289,7 +350,7 @@ async function executeNode(
 
       const result = await tasks.triggerAndWait('extract-frame', {
         videoUrl,
-        timestamp: timestampInput?.value ?? node.data.timestamp ?? '0',
+        timestamp: extractString(timestampInput) ?? node.data.timestamp ?? '0',
         runId,
         nodeId: node.id,
       })

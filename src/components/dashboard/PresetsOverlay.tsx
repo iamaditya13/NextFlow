@@ -43,6 +43,12 @@ const PRESET_TEMPLATES: PresetTemplate[] = [
     isPro: true,
     isNew: true,
   },
+  {
+    title: 'Product Marketing Kit Generator',
+    subtitle: 'Full 6-node workflow: upload image + video → crop → LLM → marketing post.',
+    image: '',
+    isNew: true,
+  },
 ]
 
 interface PresetsOverlayProps {

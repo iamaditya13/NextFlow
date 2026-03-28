@@ -1,48 +1,15 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
 import { RectangleHorizontal, Tag, ImageIcon, Sparkles, Plus } from "lucide-react";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
+import { AnimatedWord } from "@/components/AnimatedWord";
 
-function useScrollReveal(threshold = 0.1) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold },
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [threshold]);
-  return { ref, visible };
-}
+const headingLines = [
+  ["Dead", "simple", "UI."],
+  ["No", "tutorials", "needed."],
+];
 
-function RevealLine({
-  text,
-  visible,
-  delay = 0,
-}: {
-  text: string;
-  visible: boolean;
-  delay?: number;
-}) {
-  return (
-    <span
-      className="block"
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(16px)",
-        transition: `opacity 0.55s cubic-bezier(0.22,1,0.36,1) ${delay}s, transform 0.55s cubic-bezier(0.22,1,0.36,1) ${delay}s`,
-      }}
-    >
-      {text}
-    </span>
-  );
-}
+const headingWordClassName =
+  "text-black text-4xl md:text-6xl lg:text-[72px] font-semibold tracking-[-0.025em] leading-[1.05] text-center";
 
 export const UISection = () => {
   const { ref: headingRef, visible: headingVisible } = useScrollReveal(0.2);
@@ -90,10 +57,34 @@ export const UISection = () => {
           <h2
             ref={headingRef}
             aria-label="Dead simple UI. No tutorials needed."
-            className="text-black text-4xl md:text-6xl lg:text-[72px] font-semibold tracking-[-0.025em] leading-[1.05] text-center"
+            className={headingWordClassName}
           >
-            <RevealLine text="Dead simple UI." visible={headingVisible} delay={0} />
-            <RevealLine text="No tutorials needed." visible={headingVisible} delay={0.1} />
+            {headingLines.map((line, lineIndex) => {
+              const lineCharsBefore =
+                headingLines.slice(0, lineIndex).join("").length + lineIndex * 5;
+              return (
+                <span key={`line-${lineIndex}`} className="block">
+                  {line.map((word, wordIndex) => {
+                    const wordCharsBefore =
+                      line.slice(0, wordIndex).join("").length + wordIndex;
+                    const startIdx = lineCharsBefore + wordCharsBefore;
+                    return (
+                      <span
+                        key={`${word}-${wordIndex}`}
+                        className="inline-block mr-3 md:mr-4 align-top"
+                      >
+                        <AnimatedWord
+                          word={word}
+                          className={headingWordClassName}
+                          baseIndex={startIdx}
+                          visible={headingVisible}
+                        />
+                      </span>
+                    );
+                  })}
+                </span>
+              );
+            })}
           </h2>
 
           <p

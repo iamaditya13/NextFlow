@@ -9,6 +9,7 @@ interface StudioShellProps {
   rightPanel?: ReactNode
   contentPadding?: string
   initialSidebarExpanded?: boolean
+  onAddNode?: (type: string) => void
 }
 
 export function StudioShell({
@@ -16,10 +17,11 @@ export function StudioShell({
   rightPanel,
   contentPadding = '22px 28px',
   initialSidebarExpanded = false,
+  onAddNode,
 }: StudioShellProps) {
   return (
-    <div className="flex h-full dark:bg-[#101010] bg-[#f5f5f5] dark:text-white text-gray-900">
-      <GlobalSidebar initialExpanded={initialSidebarExpanded} />
+    <div className="flex h-full" style={{ background: 'var(--nf-bg-outer)', color: 'var(--nf-text-primary)' }}>
+      <GlobalSidebar initialExpanded={initialSidebarExpanded} onAddNode={onAddNode} />
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
         <main

@@ -1,12 +1,13 @@
 import { auth, currentUser } from '@clerk/nextjs/server'
-import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { HomeDashboard } from '@/components/dashboard/HomeDashboard'
 import { initializeSampleWorkflow } from '@/lib/sampleWorkflow'
 
 export default async function DashboardPage() {
   const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
+  if (!userId) {
+    return <HomeDashboard guestMode />
+  }
 
   let user = await prisma.user.findUnique({
     where: { clerkId: userId },

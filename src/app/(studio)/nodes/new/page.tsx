@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 
 export default async function NewNodeEditorPage() {
   const { userId: clerkId } = await auth()
-  if (!clerkId) redirect('/sign-in')
+  if (!clerkId) redirect('/sign-up')
 
   let user = await prisma.user.findUnique({ where: { clerkId } })
   if (!user) {
@@ -18,5 +18,5 @@ export default async function NewNodeEditorPage() {
     data: { name: 'Untitled Workflow', userId: user.id, data: {} },
   })
 
-  redirect(`/nodes/${workflow.id}`)
+  redirect(`/dashboard/node-editor/${workflow.id}`)
 }

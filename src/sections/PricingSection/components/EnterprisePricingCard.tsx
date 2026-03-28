@@ -1,6 +1,6 @@
 "use client";
 import { Check, Sparkles } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export type EnterprisePricingCardProps = {
   isYearly?: boolean;
@@ -52,6 +52,10 @@ const AnimatedAmount = ({ value }: { value: number }) => {
   const prevValueRef = useRef(value);
 
   useEffect(() => {
+    prevValueRef.current = displayValue;
+  }, [displayValue]);
+
+  useEffect(() => {
     const startValue = prevValueRef.current;
     if (startValue === value) return;
 
@@ -62,7 +66,9 @@ const AnimatedAmount = ({ value }: { value: number }) => {
     const update = (now: number) => {
       const progress = Math.min((now - startTime) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(Math.round(startValue + (value - startValue) * eased));
+      const nextValue = Math.round(startValue + (value - startValue) * eased);
+      prevValueRef.current = nextValue;
+      setDisplayValue(nextValue);
 
       if (progress < 1) {
         frameId = requestAnimationFrame(update);
@@ -77,6 +83,8 @@ const AnimatedAmount = ({ value }: { value: number }) => {
 
   return <>{displayValue}</>;
 };
+
+const BUSINESS_MAX_INDEX = BUSINESS_PRICES.length - 1;
 
 export const EnterprisePricingCard = (props: EnterprisePricingCardProps) => {
   const {
@@ -100,10 +108,11 @@ export const EnterprisePricingCard = (props: EnterprisePricingCardProps) => {
     ? Math.floor(BUSINESS_PRICES[sliderIndex] * 0.8)
     : BUSINESS_PRICES[sliderIndex];
 
-  const handleBusinessSlider = (rawValue: string) => {
-    const parsed = Number(rawValue);
+  const handleBusinessSlider = (rawValue: number | string) => {
+    const parsed =
+      typeof rawValue === "number" ? rawValue : Number(rawValue);
     if (!Number.isFinite(parsed)) return;
-    const clamped = Math.min(9, Math.max(0, parsed));
+    const clamped = Math.min(BUSINESS_MAX_INDEX, Math.max(0, Math.round(parsed)));
     setSliderIndex(clamped);
   };
 
@@ -157,31 +166,23 @@ export const EnterprisePricingCard = (props: EnterprisePricingCardProps) => {
                 </button>
               ))}
             </div>
-            <div
-              className="mt-2 px-1 relative w-full pt-2 pb-2"
-              onPointerDown={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const ratio = Math.min(
-                  1,
-                  Math.max(0, (e.clientX - rect.left) / rect.width),
-                );
-                const snapped = Math.round(ratio * 9);
-                handleBusinessSlider(String(snapped));
-              }}
-            >
+            <div className="mt-2 px-1 relative w-full pt-2 pb-2 z-10 pointer-events-auto">
               <input
                 type="range"
                 min={0}
-                max={9}
+                max={BUSINESS_MAX_INDEX}
                 step={1}
                 value={sliderIndex}
-                onInput={(e) => handleBusinessSlider(e.currentTarget.value)}
-                onChange={(e) => handleBusinessSlider(e.currentTarget.value)}
+                onChange={(e) =>
+                  handleBusinessSlider(Number(e.currentTarget.value))
+                }
                 aria-label="Business plan compute units"
-                className="pricing-slider cursor-pointer accent-current"
-                style={{
-                  background: `linear-gradient(to right, #171717 0%, #171717 ${(sliderIndex / 9) * 100}%, #e5e7eb ${(sliderIndex / 9) * 100}%, #e5e7eb 100%)`,
-                }}
+                className="pricing-slider cursor-pointer accent-current relative z-10 pointer-events-auto"
+                style={
+                  {
+                    '--slider-fill': `${(sliderIndex / BUSINESS_MAX_INDEX) * 100}%`,
+                  } as React.CSSProperties
+                }
               />
             </div>
           </div>

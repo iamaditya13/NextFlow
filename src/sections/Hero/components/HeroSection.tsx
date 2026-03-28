@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
-const HERO_BACKGROUND_IMAGE =
-  "https://www.figma.com/api/mcp/asset/a7669516-68f8-4ff9-b0d7-46e08dbf6a16";
+const HERO_BACKGROUND_IMAGE = "/assets/hero-monitor.png";
 
 export const HeroSection = () => {
   const [visible, setVisible] = useState(false);
@@ -15,32 +15,36 @@ export const HeroSection = () => {
 
   return (
     <section
-      className="relative mx-auto overflow-hidden"
+      className="relative isolate mx-auto overflow-hidden"
       style={{
         minHeight: "calc(100vh - 69px)",
         paddingLeft: 20,
         paddingRight: 20,
         paddingTop: 96,
         paddingBottom: 72,
+        backgroundColor: "#05080d",
       }}
     >
-      <img
+      <Image
         src={HERO_BACKGROUND_IMAGE}
         alt=""
         aria-hidden="true"
-        className="absolute inset-0 -z-20 w-full h-full object-cover pointer-events-none select-none"
+        fill
+        preload
+        sizes="100vw"
+        className="absolute inset-0 z-0 w-full h-full object-cover pointer-events-none select-none"
         draggable={false}
       />
 
       <div
-        className="absolute inset-0 pointer-events-none -z-10"
+        className="absolute inset-0 pointer-events-none z-10"
         style={{
           background:
-            "linear-gradient(180deg, rgba(0,0,0,0.84) 0%, rgba(0,0,0,0.6) 32%, rgba(0,0,0,0.35) 56%, rgba(0,0,0,0.7) 100%)",
+            "linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.5) 32%, rgba(0,0,0,0.28) 56%, rgba(0,0,0,0.6) 100%)",
         }}
       />
       <div
-        className="absolute inset-0 pointer-events-none -z-10"
+        className="absolute inset-0 pointer-events-none z-10"
         style={{
           background:
             "radial-gradient(ellipse 80% 45% at 50% 24%, rgba(18,54,86,0.42) 0%, rgba(0,0,0,0) 70%)",
@@ -48,7 +52,7 @@ export const HeroSection = () => {
       />
 
       <div
-        className="relative z-10 mx-auto flex flex-col items-center"
+        className="relative z-20 mx-auto flex flex-col items-center"
         style={{
           maxWidth: 980,
         }}
@@ -96,8 +100,8 @@ export const HeroSection = () => {
             textShadow: "0 1px 10px rgba(0,0,0,0.45)",
           }}
         >
-          Generate, enhance, and edit images, videos, or 3D meshes for free
-          with AI.
+          Generate, enhance, and edit images, videos, or 3D meshes for free with
+          AI.
         </p>
 
         <div

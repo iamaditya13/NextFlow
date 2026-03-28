@@ -5,9 +5,10 @@ import { Handle, Position, useNodeConnections } from '@xyflow/react'
 import { Bot, ChevronRight, Loader2, Play, X } from 'lucide-react'
 
 const MODELS = [
-  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
   { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite' },
+  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
 ]
 
 function getStatusClass(status: string) {
@@ -28,7 +29,7 @@ export function LLMNode({ data, selected }: any) {
   const isUserMessageConnected = userMessageConnections.length > 0
 
   return (
-    <div className={`nf-node ${selected ? 'nf-node--selected' : ''} ${getStatusClass(status)}`}>
+    <div className={`nf-node ${selected ? 'nf-node--selected-llm' : ''} ${getStatusClass(status)}`}>
       <Handle type="target" position={Position.Left} id="system_prompt" className="nf-handle nf-handle--text" style={{ top: '30%' }} />
       <Handle type="target" position={Position.Left} id="user_message" className="nf-handle nf-handle--text" style={{ top: '50%' }} />
       <Handle type="target" position={Position.Left} id="images" className="nf-handle nf-handle--image" style={{ top: '70%' }} />
@@ -51,6 +52,10 @@ export function LLMNode({ data, selected }: any) {
             </div>
           ) : data.nodeOutput?.error ? (
             <div style={{ padding: 16, fontSize: 'var(--nf-font-size-xs)', color: '#ef4444' }}>{data.nodeOutput.error}</div>
+          ) : typeof data.nodeOutput?.waitingText === 'string' ? (
+            <div style={{ padding: 16, fontSize: 'var(--nf-font-size-xs)', color: 'var(--nf-text-muted)', fontStyle: 'italic' }}>
+              {data.nodeOutput.waitingText}
+            </div>
           ) : (
             <p>Results will appear here</p>
           )}

@@ -14,7 +14,7 @@ export function TextNode({ data, selected }: any) {
   const status = (data.executionStatus || 'idle').toLowerCase()
 
   return (
-    <div className={`nf-node ${selected ? 'nf-node--selected' : ''} ${getStatusClass(status)}`}>
+    <div className={`nf-node ${selected ? 'nf-node--selected-text' : ''} ${getStatusClass(status)}`}>
       <div className="nf-node__header">
         <span className="nf-node__title">{data.label || 'Text'}</span>
         <span className={`nf-node__status-dot nf-node__status-dot--${status}`} />

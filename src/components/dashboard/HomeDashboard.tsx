@@ -14,7 +14,8 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 /* ─────────────────────── Types ─────────────────────── */
 
@@ -337,11 +338,6 @@ const footerSocials = [
 ];
 
 const PLAN_CYCLE = ["Basic", "Pro", "Max"] as const;
-const PLAN_COLORS: Record<string, string> = {
-  Basic: "#22c55e",
-  Pro: "#a855f7",
-  Max: "#3b82f6",
-};
 const PLAN_STYLES: Record<string, { gradient: string; glow: string }> = {
   Basic: {
     gradient: "linear-gradient(to bottom, #b9f8cf, #05df72, #009966)",
@@ -398,14 +394,22 @@ function HorizontalRail({
   return (
     <section>
       <div className="flex items-center justify-between mb-4 h-8">
-        <h3 className="m-0 text-lg font-medium text-neutral-100 leading-8">
+        <h3
+          className="m-0 text-lg font-medium leading-8"
+          style={{ color: "var(--nf-text-primary)" }}
+        >
           {title}
         </h3>
         <div className="flex gap-2">
           <button
             onClick={() => setActiveIndex(Math.max(0, idx - 1))}
             disabled={idx === 0}
-            className="w-8 h-8 rounded-full border border-neutral-800 bg-neutral-900 text-neutral-500 grid place-items-center disabled:opacity-40 cursor-pointer disabled:cursor-default transition-opacity hover:bg-neutral-800"
+            className="w-8 h-8 rounded-full grid place-items-center disabled:opacity-40 cursor-pointer disabled:cursor-default transition-opacity nf-hover-item"
+            style={{
+              border: "1px solid var(--nf-border-inner)",
+              background: "var(--nf-bg-node)",
+              color: "var(--nf-text-muted)",
+            }}
             aria-label="Previous"
           >
             <ChevronLeft size={16} />
@@ -413,7 +417,12 @@ function HorizontalRail({
           <button
             onClick={() => setActiveIndex(Math.min(maxIndex, idx + 1))}
             disabled={idx >= maxIndex}
-            className="w-8 h-8 rounded-full border border-neutral-800 bg-neutral-900 text-neutral-500 grid place-items-center disabled:opacity-40 cursor-pointer disabled:cursor-default transition-opacity hover:bg-neutral-800"
+            className="w-8 h-8 rounded-full grid place-items-center disabled:opacity-40 cursor-pointer disabled:cursor-default transition-opacity nf-hover-item"
+            style={{
+              border: "1px solid var(--nf-border-inner)",
+              background: "var(--nf-bg-node)",
+              color: "var(--nf-text-muted)",
+            }}
             aria-label="Next"
           >
             <ChevronRight size={16} />
@@ -459,7 +468,12 @@ function EllipsisMenu({ onUnpin }: { onUnpin?: () => void }) {
           e.stopPropagation();
           setOpen(!open);
         }}
-        className="w-7 h-7 rounded-md bg-black/60 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/80 grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
+        className="w-7 h-7 rounded-md grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer nf-hover-item"
+        style={{
+          background: "color-mix(in srgb, var(--nf-bg-canvas) 82%, transparent)",
+          color: "var(--nf-text-secondary)",
+          backdropFilter: "blur(8px)",
+        }}
       >
         <MoreHorizontal size={14} />
       </button>
@@ -470,7 +484,11 @@ function EllipsisMenu({ onUnpin }: { onUnpin?: () => void }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-9 w-40 bg-white rounded-lg shadow-xl overflow-hidden z-20"
+            className="absolute right-0 top-9 w-40 rounded-lg shadow-xl overflow-hidden z-20"
+            style={{
+              background: "var(--nf-bg-node)",
+              border: "1px solid var(--nf-border-inner)",
+            }}
           >
             <button
               onClick={(e) => {
@@ -479,7 +497,8 @@ function EllipsisMenu({ onUnpin }: { onUnpin?: () => void }) {
                 onUnpin?.();
                 setOpen(false);
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-neutral-700 hover:bg-neutral-100 cursor-pointer transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm cursor-pointer transition-colors nf-hover-item"
+              style={{ color: "var(--nf-text-primary)" }}
             >
               <svg
                 width="14"
@@ -714,7 +733,8 @@ function HeroCarousel() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.25 }}
-                className="m-0 text-neutral-100 font-medium text-lg leading-none truncate"
+                className="m-0 font-medium text-lg leading-none truncate"
+                style={{ color: "var(--nf-text-primary)" }}
               >
                 {heroSlides[current].title}
               </motion.h3>
@@ -724,14 +744,24 @@ function HeroCarousel() {
         <div className="flex gap-2 shrink-0">
           <button
             onClick={prev}
-            className="w-8 h-8 rounded-full bg-[#262626] text-white/50 hover:text-white hover:opacity-100 grid place-items-center cursor-pointer transition-all"
+            className="w-8 h-8 rounded-full grid place-items-center cursor-pointer transition-all nf-hover-item"
+            style={{
+              background: "var(--nf-bg-node)",
+              color: "var(--nf-text-muted)",
+              border: "1px solid var(--nf-border-inner)",
+            }}
             aria-label="Previous slide"
           >
             <ChevronLeft size={16} strokeWidth={2} />
           </button>
           <button
             onClick={next}
-            className="w-8 h-8 rounded-full bg-[#262626] text-white/70 hover:text-white grid place-items-center cursor-pointer transition-colors"
+            className="w-8 h-8 rounded-full grid place-items-center cursor-pointer transition-colors nf-hover-item"
+            style={{
+              background: "var(--nf-bg-node)",
+              color: "var(--nf-text-secondary)",
+              border: "1px solid var(--nf-border-inner)",
+            }}
             aria-label="Next slide"
           >
             <ChevronRight size={16} strokeWidth={2} />
@@ -760,12 +790,19 @@ function UpgradeBanner() {
   return (
     <Link
       href="/dashboard/pricing"
-      className="flex items-center justify-between w-full h-48 rounded-xl border border-neutral-800 bg-neutral-950 px-8 no-underline overflow-hidden relative"
+      className="flex items-center justify-between w-full h-48 rounded-xl px-8 no-underline overflow-hidden relative"
+      style={{
+        border: "1px solid var(--nf-border-inner)",
+        background: "var(--nf-bg-canvas-grid)",
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <div className="max-w-[280px] z-[1]">
-        <div className="flex flex-col gap-1 font-medium text-lg text-white leading-7">
+        <div
+          className="flex flex-col gap-1 font-medium text-lg leading-7"
+          style={{ color: "var(--nf-text-primary)" }}
+        >
           <span>Upscale images & videos to 22K</span>
           <span>Lora fine-tuning</span>
           <span>Access all 150+ models</span>
@@ -786,7 +823,7 @@ function UpgradeBanner() {
               transition={{ duration: 0.3 }}
               className="flex items-baseline gap-3 text-5xl font-bold tracking-tight leading-none"
             >
-              <span className="text-white">Try</span>
+              <span style={{ color: "var(--nf-text-primary)" }}>Try</span>
               <div
                 className="overflow-hidden"
                 style={{ lineHeight: 1, display: "inline-block" }}
@@ -819,7 +856,8 @@ function UpgradeBanner() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="inline-flex items-center gap-2.5 text-2xl font-bold text-neutral-100"
+              className="inline-flex items-center gap-2.5 text-2xl font-bold"
+              style={{ color: "var(--nf-text-primary)" }}
             >
               View pricing <ArrowRight size={22} />
             </motion.div>
@@ -974,9 +1012,39 @@ function InstantActionCard({ action }: { action: ActionCard }) {
 
 /* ─────────────── Main Dashboard ─────────────── */
 
-export function HomeDashboard() {
+export function HomeDashboard({ guestMode = false }: { guestMode?: boolean }) {
+  const router = useRouter();
+
+  const handleGuestActionCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!guestMode) return;
+
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      const interactive = target.closest("a, button");
+      if (!interactive) return;
+
+      const anchor = interactive.closest("a");
+      const href = anchor?.getAttribute("href");
+      if (href && href.startsWith("/sign-up")) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      router.push("/sign-up");
+    },
+    [guestMode, router],
+  );
+
   return (
-    <div className="nf-scroll bg-[#0a0a0a] text-white min-h-full">
+    <div
+      className="nf-scroll min-h-full"
+      style={{
+        background: "var(--nf-bg-canvas)",
+        color: "var(--nf-text-primary)",
+      }}
+      onClickCapture={handleGuestActionCapture}
+    >
       <div className="w-full px-12 pt-12">
         {/* Hero Carousel */}
         <HeroCarousel />
@@ -1039,7 +1107,10 @@ export function HomeDashboard() {
 
         {/* Play with Node Apps */}
         <section className="mb-14">
-          <h3 className="m-0 mb-4 text-lg font-medium text-neutral-100 leading-8">
+          <h3
+            className="m-0 mb-4 text-lg font-medium leading-8"
+            style={{ color: "var(--nf-text-primary)" }}
+          >
             Play with node apps
           </h3>
           <div className="grid grid-cols-4 gap-8">
@@ -1065,7 +1136,10 @@ export function HomeDashboard() {
 
         {/* Release Notes */}
         <section className="mb-14">
-          <h3 className="m-0 mb-4 text-lg font-medium text-neutral-100 leading-8">
+          <h3
+            className="m-0 mb-4 text-lg font-medium leading-8"
+            style={{ color: "var(--nf-text-primary)" }}
+          >
             Release notes
           </h3>
           <div className="grid grid-cols-2 gap-8">
@@ -1073,7 +1147,7 @@ export function HomeDashboard() {
               <button
                 key={item.title}
                 type="button"
-                className="group grid gap-4 p-2 h-[196px] rounded-xl border-none bg-transparent cursor-pointer text-left text-inherit hover:bg-white/[0.03] transition-colors"
+                className="group grid gap-4 p-2 h-[196px] rounded-xl border-none bg-transparent cursor-pointer text-left text-inherit transition-colors nf-hover-item"
                 style={{ gridTemplateColumns: "280px 1fr" }}
               >
                 <div className="w-[280px] h-[180px] rounded-xl overflow-hidden">
@@ -1084,13 +1158,22 @@ export function HomeDashboard() {
                   />
                 </div>
                 <div className="flex flex-col justify-start pt-1">
-                  <h4 className="m-0 text-base font-semibold text-neutral-100 leading-7">
+                  <h4
+                    className="m-0 text-base font-semibold leading-7"
+                    style={{ color: "var(--nf-text-primary)" }}
+                  >
                     {item.title}
                   </h4>
-                  <p className="mt-1 text-[13px] text-neutral-400 leading-[18px] line-clamp-3">
+                  <p
+                    className="mt-1 text-[13px] leading-[18px] line-clamp-3"
+                    style={{ color: "var(--nf-text-muted)" }}
+                  >
                     {item.description}
                   </p>
-                  <span className="mt-auto text-xs text-neutral-500 leading-[18px]">
+                  <span
+                    className="mt-auto text-xs leading-[18px]"
+                    style={{ color: "var(--nf-text-label)" }}
+                  >
                     {item.date}
                   </span>
                 </div>
@@ -1100,11 +1183,17 @@ export function HomeDashboard() {
         </section>
 
         {/* Footer */}
-        <footer className="border-t border-neutral-800 pt-12 pb-8">
+        <footer
+          className="pt-12 pb-8"
+          style={{ borderTop: "1px solid var(--nf-border-inner)" }}
+        >
           <div className="grid grid-cols-4 gap-8">
             {footerColumns.map((col) => (
               <div key={col.title}>
-                <h4 className="m-0 text-sm font-semibold text-neutral-100 leading-5">
+                <h4
+                  className="m-0 text-sm font-semibold leading-5"
+                  style={{ color: "var(--nf-text-primary)" }}
+                >
                   {col.title}
                 </h4>
                 <ul className="list-none m-0 mt-4 p-0 flex flex-col gap-2">
@@ -1112,7 +1201,8 @@ export function HomeDashboard() {
                     <li key={link}>
                       <Link
                         href="#"
-                        className="text-sm text-neutral-500 no-underline leading-[26px] hover:text-neutral-300 transition-colors"
+                        className="text-sm no-underline leading-[26px] transition-colors"
+                        style={{ color: "var(--nf-text-muted)" }}
                       >
                         {link}
                       </Link>
@@ -1122,7 +1212,13 @@ export function HomeDashboard() {
               </div>
             ))}
           </div>
-          <div className="mt-8 border-t border-neutral-800 pt-4 flex justify-between items-center text-neutral-500 text-sm">
+          <div
+            className="mt-8 pt-4 flex justify-between items-center text-sm"
+            style={{
+              borderTop: "1px solid var(--nf-border-inner)",
+              color: "var(--nf-text-label)",
+            }}
+          >
             <span>&copy; 2026 Krea</span>
             <div className="flex gap-4">
               {footerSocials.map((s) => {
@@ -1132,7 +1228,8 @@ export function HomeDashboard() {
                     key={s.label}
                     type="button"
                     aria-label={s.label}
-                    className="border-none bg-transparent text-neutral-500 p-0 w-5 h-5 grid place-items-center cursor-pointer hover:text-neutral-300 transition-colors"
+                    className="border-none bg-transparent p-0 w-5 h-5 grid place-items-center cursor-pointer transition-colors"
+                    style={{ color: "var(--nf-text-label)" }}
                   >
                     <Icon size={16} />
                   </button>

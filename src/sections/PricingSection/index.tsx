@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { PricingToggle } from "@/sections/PricingSection/components/PricingToggle";
 import { PricingCard } from "@/sections/PricingSection/components/PricingCard";
 import { EnterprisePricingGrid } from "@/sections/PricingSection/components/EnterprisePricingGrid";
+import { AnimatedWord } from "@/components/AnimatedWord";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
 
 const headingLines = [
   ["Trusted", "by", "over", "30,000,000", "users"],
@@ -10,11 +12,15 @@ const headingLines = [
   ["We've", "got", "a", "plan", "for", "everybody..."],
 ];
 
-import { useScrollReveal } from "@/hooks/useScrollReveal";
+const MAX_PLAN_UNITS = [40, 60, 80, 100] as const;
 
 const AnimatedAmount = ({ value }: { value: number }) => {
   const [displayValue, setDisplayValue] = useState(value);
   const prevValueRef = useRef(value);
+
+  useEffect(() => {
+    prevValueRef.current = displayValue;
+  }, [displayValue]);
 
   useEffect(() => {
     const startValue = prevValueRef.current;
@@ -30,12 +36,14 @@ const AnimatedAmount = ({ value }: { value: number }) => {
       const nextValue = Math.round(
         startValue + (value - startValue) * eased,
       );
+      prevValueRef.current = nextValue;
       setDisplayValue(nextValue);
 
       if (progress < 1) {
         frameId = requestAnimationFrame(update);
       } else {
         prevValueRef.current = value;
+        setDisplayValue(value);
       }
     };
 
@@ -46,33 +54,58 @@ const AnimatedAmount = ({ value }: { value: number }) => {
   return <>{displayValue}</>;
 };
 
-const AnimatedWord = ({
-  word,
-  baseIndex = 0,
-  visible = true,
-}: {
-  word: string;
-  baseIndex?: number;
-  visible?: boolean;
-}) => {
-  return (
-    <div className="relative text-4xl font-semibold text-neutral-900 inline-block tracking-[-0.9px] leading-[37.8px] md:text-7xl md:tracking-[-1.8px] md:leading-[75.6px]">
-      {word.split("").map((character, index) => (
-        <div
-          key={`${word}-${index}`}
-          className={`relative text-4xl font-semibold text-neutral-900 inline-block tracking-[-0.9px] leading-[37.8px] md:text-7xl md:tracking-[-1.8px] md:leading-[75.6px] transition-all duration-[600ms] ease-out transform ${visible ? "opacity-100 translate-y-0 blur-[0px]" : "opacity-0 translate-y-8 blur-[10px]"}`}
-          style={{ transitionDelay: `${(baseIndex + index) * 15}ms` }}
-        >
-          {character}
-        </div>
-      ))}
-    </div>
-  );
-};
-
 export const PricingSection = () => {
   const [isYearly, setIsYearly] = useState(false);
-  const [units, setUnits] = useState(60);
+  const [maxUnitsIndex, setMaxUnitsIndex] = useState(1);
+
+  useEffect(() => {
+    try {
+      const storedYearly = window.localStorage.getItem("landing.pricing.isYearly");
+      const storedMaxUnitsIndex = window.localStorage.getItem(
+        "landing.pricing.maxUnitsIndex",
+      );
+      if (storedYearly === "1" || storedYearly === "0") {
+        setIsYearly(storedYearly === "1");
+      }
+      if (storedMaxUnitsIndex !== null) {
+        const parsed = Number(storedMaxUnitsIndex);
+        if (Number.isFinite(parsed)) {
+          setMaxUnitsIndex(
+            Math.min(
+              MAX_PLAN_UNITS.length - 1,
+              Math.max(0, Math.round(parsed)),
+            ),
+          );
+        }
+      }
+    } catch {
+      // Ignore storage errors in restricted browsers.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "landing.pricing.isYearly",
+        isYearly ? "1" : "0",
+      );
+      window.localStorage.setItem(
+        "landing.pricing.maxUnitsIndex",
+        String(maxUnitsIndex),
+      );
+    } catch {
+      // Ignore storage errors in restricted browsers.
+    }
+  }, [isYearly, maxUnitsIndex]);
+
+  const handleMaxUnitsIndexChange = (nextValue: number) => {
+    if (!Number.isFinite(nextValue)) return;
+    const maxIndex = MAX_PLAN_UNITS.length - 1;
+    const clamped = Math.min(maxIndex, Math.max(0, Math.round(nextValue)));
+    setMaxUnitsIndex(clamped);
+  };
+
+  const units = MAX_PLAN_UNITS[maxUnitsIndex];
 
   const getPrice = (monthlyPrice: number) => {
     if (monthlyPrice === 0) return 0;
@@ -121,6 +154,7 @@ export const PricingSection = () => {
                   >
                     <AnimatedWord
                       word={word}
+                      className="text-4xl font-semibold text-neutral-900 tracking-[-0.9px] leading-[37.8px] md:text-7xl md:tracking-[-1.8px] md:leading-[75.6px]"
                       baseIndex={startIdx}
                       visible={headingVisible}
                     />
@@ -267,50 +301,35 @@ export const PricingSection = () => {
             computeUnitsContent={`${units}k compute units / month`}
             sliderContent={
               <>
-                <div className="text-xs font-semibold flex justify-between px-1">
-                  <button
-                    type="button"
-                    onClick={() => setUnits(40)}
-                    className={`text-center p-0 transition-colors ${units === 40 ? "text-neutral-900" : "text-neutral-400 hover:text-neutral-600"}`}
-                  >
-                    40k
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUnits(60)}
-                    className={`text-center p-0 transition-colors ${units === 60 ? "text-neutral-900" : "text-neutral-400 hover:text-neutral-600"}`}
-                  >
-                    60k
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUnits(80)}
-                    className={`text-center p-0 transition-colors ${units === 80 ? "text-neutral-900" : "text-neutral-400 hover:text-neutral-600"}`}
-                  >
-                    80k
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUnits(100)}
-                    className={`text-center p-0 transition-colors ${units === 100 ? "text-neutral-900" : "text-neutral-400 hover:text-neutral-600"}`}
-                  >
-                    100k
-                  </button>
+                <div className="text-xs font-semibold flex justify-between px-1 relative z-10 pointer-events-auto">
+                  {MAX_PLAN_UNITS.map((unit, index) => (
+                    <button
+                      key={unit}
+                      type="button"
+                      onClick={() => handleMaxUnitsIndexChange(index)}
+                      className={`text-center p-0 transition-colors ${units === unit ? "text-neutral-900" : "text-neutral-400 hover:text-neutral-600"}`}
+                    >
+                      {unit}k
+                    </button>
+                  ))}
                 </div>
-                <div className="px-1 relative w-full mt-2">
+                <div className="px-1 relative w-full mt-2 z-10 pointer-events-auto">
                   <input
                     type="range"
-                    min={40}
-                    max={100}
-                    step={5}
-                    value={units}
-                    onInput={(e) => setUnits(Number(e.currentTarget.value))}
-                    onChange={(e) => setUnits(Number(e.target.value))}
+                    min={0}
+                    max={MAX_PLAN_UNITS.length - 1}
+                    step={1}
+                    value={maxUnitsIndex}
+                    onChange={(e) =>
+                      handleMaxUnitsIndexChange(Number(e.currentTarget.value))
+                    }
                     aria-label="Max plan compute units"
-                    className="pricing-slider cursor-pointer accent-current"
-                    style={{
-                      background: `linear-gradient(to right, #171717 0%, #171717 ${((units - 40) / 60) * 100}%, #e5e7eb ${((units - 40) / 60) * 100}%, #e5e7eb 100%)`,
-                    }}
+                    className="pricing-slider cursor-pointer accent-current relative z-10 pointer-events-auto"
+                    style={
+                      {
+                        '--slider-fill': `${(maxUnitsIndex / (MAX_PLAN_UNITS.length - 1)) * 100}%`,
+                      } as React.CSSProperties
+                    }
                   />
                 </div>
               </>

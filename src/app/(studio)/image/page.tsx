@@ -20,9 +20,9 @@ import { StudioShell } from '@/components/dashboard/StudioShell'
 const optionBtnBase = {
   height: 36,
   borderRadius: 10,
-  border: '1px solid #262626',
-  background: '#141414',
-  color: '#e5e5e5',
+  border: '1px solid var(--nf-border-inner)',
+  background: 'var(--nf-bg-node-inner)',
+  color: 'var(--nf-text-secondary)',
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
@@ -97,8 +97,8 @@ export default function ImagePage() {
       <div
         style={{
           minHeight: '100vh',
-          background: '#0a0a0a',
-          color: '#f5f5f5',
+          background: 'var(--nf-bg-canvas)',
+          color: 'var(--nf-text-primary)',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
@@ -112,9 +112,9 @@ export default function ImagePage() {
             style={{
               height: 36,
               borderRadius: 10,
-              border: '1px solid #262626',
-              background: '#121212',
-              color: '#f5f5f5',
+              border: '1px solid var(--nf-border-inner)',
+              background: 'var(--nf-bg-node-inner)',
+              color: 'var(--nf-text-primary)',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -125,10 +125,10 @@ export default function ImagePage() {
               gap: 8,
             }}
           >
-            <span style={{ color: '#737373' }}>Model</span>
+            <span style={{ color: 'var(--nf-text-label)' }}>Model</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <span>{selectedModelData.name}</span>
-              <ChevronDown size={14} style={{ color: '#737373' }} />
+              <ChevronDown size={14} style={{ color: 'var(--nf-text-label)' }} />
             </span>
           </button>
 
@@ -142,8 +142,8 @@ export default function ImagePage() {
                 width: 420,
                 maxHeight: 700,
                 overflowY: 'auto',
-                background: '#1a1a1a',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--nf-bg-node)',
+                border: '1px solid color-mix(in srgb, var(--nf-text-primary) 8%, transparent)',
                 borderRadius: 16,
                 boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
                 padding: '4px 0',
@@ -164,16 +164,16 @@ export default function ImagePage() {
                   padding: '12px 16px',
                   background: 'transparent',
                   border: 'none',
-                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  borderBottom: '1px solid color-mix(in srgb, var(--nf-text-primary) 6%, transparent)',
                   cursor: 'pointer',
-                  color: '#fff',
+                  color: 'var(--nf-text-primary)',
                   fontSize: 13,
                   fontFamily: 'inherit',
                 }}
-                className="hover:!bg-white/5"
+                className="nf-hover-item"
               >
                 Click to view all models
-                <ChevronDown size={14} style={{ color: 'rgba(255,255,255,0.35)' }} />
+                <ChevronDown size={14} style={{ color: 'var(--nf-text-label)' }} />
               </button>
 
               {MODELS.map((model) => (
@@ -190,14 +190,14 @@ export default function ImagePage() {
                     alignItems: 'flex-start',
                     gap: 12,
                     padding: '12px 16px',
-                    background: model.id === selectedModel ? 'rgba(255,255,255,0.04)' : 'transparent',
+                    background: model.id === selectedModel ? 'color-mix(in srgb, var(--nf-text-primary) 4%, transparent)' : 'transparent',
                     border: 'none',
                     cursor: 'pointer',
                     textAlign: 'left',
                     fontFamily: 'inherit',
-                    color: '#fff',
+                    color: 'var(--nf-text-primary)',
                   }}
-                  className="hover:!bg-white/5"
+                  className="nf-hover-item"
                 >
                   {/* Radio */}
                   <div style={{ marginTop: 2, flexShrink: 0 }}>
@@ -221,7 +221,7 @@ export default function ImagePage() {
                           width: 16,
                           height: 16,
                           borderRadius: '50%',
-                          border: '1px solid rgba(255,255,255,0.18)',
+                          border: '1px solid color-mix(in srgb, var(--nf-text-primary) 18%, transparent)',
                         }}
                       />
                     )}
@@ -231,10 +231,10 @@ export default function ImagePage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 500 }}>{model.name}</span>
                       {model.verified && (
-                        <CheckCircle2 size={14} style={{ color: 'rgba(255,255,255,0.35)' }} />
+                        <CheckCircle2 size={14} style={{ color: 'var(--nf-text-label)' }} />
                       )}
                     </div>
-                    <p style={{ margin: '2px 0 0', fontSize: 11.5, color: 'rgba(255,255,255,0.35)' }}>
+                    <p style={{ margin: '2px 0 0', fontSize: 11.5, color: 'var(--nf-text-label)' }}>
                       {model.desc}
                     </p>
                     {/* Stats */}
@@ -244,7 +244,7 @@ export default function ImagePage() {
                           <Zap
                             key={i}
                             size={12}
-                            style={{ color: i < model.speed ? '#fff' : 'rgba(255,255,255,0.15)' }}
+                            style={{ color: i < model.speed ? 'var(--nf-text-primary)' : 'color-mix(in srgb, var(--nf-text-primary) 15%, transparent)' }}
                           />
                         ))}
                       </div>
@@ -253,11 +253,11 @@ export default function ImagePage() {
                           <Diamond
                             key={i}
                             size={12}
-                            style={{ color: i < model.quality ? '#fff' : 'rgba(255,255,255,0.15)' }}
+                            style={{ color: i < model.quality ? 'var(--nf-text-primary)' : 'color-mix(in srgb, var(--nf-text-primary) 15%, transparent)' }}
                           />
                         ))}
                       </div>
-                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+                      <span style={{ fontSize: 11, color: 'var(--nf-text-label)' }}>
                         {model.credits} %
                       </span>
                     </div>
@@ -281,7 +281,7 @@ export default function ImagePage() {
         >
           {/* Icon + Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <ImageIcon size={40} style={{ color: '#a3a3a3' }} />
+            <ImageIcon size={40} style={{ color: 'var(--nf-text-muted)' }} />
             <h1
               style={{
                 margin: 0,
@@ -331,7 +331,7 @@ export default function ImagePage() {
                       borderRadius: 16,
                       overflow: 'hidden',
                       boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
-                      border: '1px solid rgba(255,255,255,0.08)',
+                      border: '1px solid color-mix(in srgb, var(--nf-text-primary) 8%, transparent)',
                       position: 'relative',
                       background: img.gradient,
                     }}
@@ -351,7 +351,7 @@ export default function ImagePage() {
                         left: 12,
                         right: 12,
                         margin: 0,
-                        color: '#fff',
+                        color: 'var(--nf-text-primary)',
                         fontSize: 13,
                         fontWeight: 500,
                         whiteSpace: 'nowrap',
@@ -385,8 +385,8 @@ export default function ImagePage() {
               width: 768,
               maxWidth: '100%',
               borderRadius: 14,
-              border: '1px solid #262626',
-              background: '#121212',
+              border: '1px solid var(--nf-border-inner)',
+              background: 'var(--nf-bg-node-inner)',
               padding: '13px 13px 0',
               display: 'flex',
               flexDirection: 'column',
@@ -409,7 +409,7 @@ export default function ImagePage() {
                 border: 'none',
                 outline: 'none',
                 background: 'transparent',
-                color: hoveredPrompt ? 'rgba(245,245,245,0.6)' : '#f5f5f5',
+                color: hoveredPrompt ? 'rgba(245,245,245,0.6)' : 'var(--nf-text-primary)',
                 fontSize: 14,
                 lineHeight: '20px',
                 padding: '6px 10px',
@@ -457,8 +457,8 @@ export default function ImagePage() {
                   height: 36,
                   borderRadius: 10,
                   border: 'none',
-                  background: '#f5f5f5',
-                  color: '#0a0a0a',
+                  background: 'var(--nf-text-primary)',
+                  color: 'var(--nf-bg-canvas)',
                   display: 'grid',
                   placeItems: 'center',
                   cursor: 'pointer',
@@ -492,8 +492,8 @@ export default function ImagePage() {
                 width: 1200,
                 maxWidth: 'calc(100vw - 80px)',
                 maxHeight: 'calc(100vh - 120px)',
-                background: '#141414',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--nf-bg-node-inner)',
+                border: '1px solid color-mix(in srgb, var(--nf-text-primary) 8%, transparent)',
                 borderRadius: 20,
                 overflow: 'hidden',
                 display: 'flex',
@@ -507,10 +507,10 @@ export default function ImagePage() {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '16px 20px',
-                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  borderBottom: '1px solid color-mix(in srgb, var(--nf-text-primary) 6%, transparent)',
                 }}
               >
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#fff' }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--nf-text-primary)' }}>
                   Select Model
                 </h2>
                 <button
@@ -522,7 +522,7 @@ export default function ImagePage() {
                     borderRadius: 8,
                     border: 'none',
                     background: 'transparent',
-                    color: 'rgba(255,255,255,0.5)',
+                    color: 'color-mix(in srgb, var(--nf-text-primary) 50%, transparent)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -558,17 +558,17 @@ export default function ImagePage() {
                       overflow: 'hidden',
                       border:
                         selectedModel === model.id
-                          ? '2px solid #fff'
+                          ? '2px solid var(--nf-text-primary)'
                           : '2px solid transparent',
-                      background: '#1a1a1a',
+                      background: 'var(--nf-bg-node)',
                       cursor: 'pointer',
                       textAlign: 'left',
                       fontFamily: 'inherit',
-                      color: '#fff',
+                      color: 'var(--nf-text-primary)',
                       padding: 0,
                       transition: 'border-color 0.15s',
                     }}
-                    className="hover:!bg-[#222]"
+                    className="nf-hover-item"
                   >
                     {/* Image mosaic placeholder */}
                     <div style={{ display: 'flex', height: 150, gap: 1 }}>
@@ -577,7 +577,7 @@ export default function ImagePage() {
                           key={j}
                           style={{
                             flex: 1,
-                            background: `linear-gradient(${120 + j * 40}deg, #2a2a2a 0%, #1a1a1a 100%)`,
+                            background: `linear-gradient(${120 + j * 40}deg, #2a2a2a 0%, var(--nf-bg-node) 100%)`,
                           }}
                         />
                       ))}
@@ -591,13 +591,13 @@ export default function ImagePage() {
                               width: 16,
                               height: 16,
                               borderRadius: '50%',
-                              border: '2px solid #fff',
+                              border: '2px solid var(--nf-text-primary)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                             }}
                           >
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--nf-text-primary)' }} />
                           </div>
                         ) : (
                           <div
@@ -605,13 +605,13 @@ export default function ImagePage() {
                               width: 16,
                               height: 16,
                               borderRadius: '50%',
-                              border: '1px solid rgba(255,255,255,0.25)',
+                              border: '1px solid color-mix(in srgb, var(--nf-text-primary) 25%, transparent)',
                             }}
                           />
                         )}
                         <span style={{ fontSize: 15, fontWeight: 500 }}>{model.name}</span>
                       </div>
-                      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
+                      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--nf-text-muted)' }}>
                         {model.desc}
                       </p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -620,7 +620,7 @@ export default function ImagePage() {
                             <Zap
                               key={i}
                               size={12}
-                              style={{ color: i < model.speed ? '#fff' : 'rgba(255,255,255,0.15)' }}
+                              style={{ color: i < model.speed ? 'var(--nf-text-primary)' : 'color-mix(in srgb, var(--nf-text-primary) 15%, transparent)' }}
                             />
                           ))}
                         </div>
@@ -629,11 +629,11 @@ export default function ImagePage() {
                             <Diamond
                               key={i}
                               size={12}
-                              style={{ color: i < model.quality ? '#fff' : 'rgba(255,255,255,0.15)' }}
+                              style={{ color: i < model.quality ? 'var(--nf-text-primary)' : 'color-mix(in srgb, var(--nf-text-primary) 15%, transparent)' }}
                             />
                           ))}
                         </div>
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+                        <span style={{ fontSize: 11, color: 'var(--nf-text-label)' }}>
                           {model.credits} %
                         </span>
                       </div>

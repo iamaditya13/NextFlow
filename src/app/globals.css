@@ -5,37 +5,59 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Krea Design Tokens — extracted from Figma */
+/* Krea Design Tokens — light mode (default) */
 :root {
-  /* Backgrounds (Figma-verified) */
-  --nf-bg-sidebar: #000000;
-  --nf-bg-canvas: #0a0a0a;
-  --nf-bg-canvas-grid: #101010;
-  --nf-bg-outer: #121212;
-  --nf-bg-node-inner: #171717;
-  --nf-bg-node: #202020;
-  --nf-bg-muted: #262626;
-  --nf-bg-active: #404040;
+  /* Backgrounds (light mode) */
+  --nf-bg-sidebar: #ffffff;
+  --nf-bg-canvas: #f0f0f0;
+  --nf-bg-canvas-grid: #e8e8e8;
+  --nf-bg-outer: #f5f5f5;
+  --nf-bg-node-inner: #f8f8f8;
+  --nf-bg-node: #ffffff;
+  --nf-bg-muted: #f0f0f0;
+  --nf-bg-active: #e0e0e0;
 
-  /* Text (Figma-verified) */
-  --nf-text-primary: #ffffff;
-  --nf-text-sidebar: #f9f9f9;
-  --nf-text-button: #f5f5f5;
-  --nf-text-secondary: #e5e5e5;
-  --nf-text-tertiary: #d4d4d5;
-  --nf-text-muted: #a3a3a3;
-  --nf-text-icon: #a0a0a0;
-  --nf-text-label: #737373;
-  --nf-text-placeholder: #525252;
+  /* Text (light mode) */
+  --nf-text-primary: #111111;
+  --nf-text-sidebar: #111111;
+  --nf-text-button: #111111;
+  --nf-text-secondary: #333333;
+  --nf-text-tertiary: #555555;
+  --nf-text-muted: #666666;
+  --nf-text-icon: #555555;
+  --nf-text-label: #888888;
+  --nf-text-placeholder: #aaaaaa;
 
-  /* Accent (Figma-verified) */
+  /* Accent (unchanged — brand colors) */
   --nf-accent-blue: #0080ff;
   --nf-accent-green: #29d246;
+  --nf-edge-text: #ff8a00;
+  --nf-edge-upload-image: #4b7cff;
+  --nf-edge-upload-video: #00c970;
+  --nf-edge-llm: #d5ad00;
+  --nf-edge-extract-frame: #e9499f;
+  --nf-edge-crop-image: #9f4eff;
+  --nf-edge-krea-image: #4b7cff;
+  --nf-loader-start: var(--nf-text-primary);
+  --nf-loader-end: var(--nf-text-primary);
+  --nf-loader-glow: color-mix(in srgb, var(--nf-text-primary) 44%, transparent);
+  --nf-hero-overlay-start: color-mix(in srgb, var(--color-bg-primary) 82%, transparent);
+  --nf-hero-overlay-mid: color-mix(in srgb, var(--color-bg-primary) 56%, transparent);
+  --nf-hero-overlay-end: color-mix(in srgb, var(--color-bg-primary) 72%, transparent);
+  --nf-hero-text-on-image: var(--color-text-white);
+  --nf-hero-text-shadow: color-mix(in srgb, var(--color-bg-primary) 42%, transparent);
+  --nf-hero-cta-bg: var(--color-text-white);
+  --nf-hero-cta-text: var(--color-bg-primary);
+  --nf-hero-cta-border: color-mix(in srgb, var(--color-text-white) 40%, transparent);
 
-  /* Borders (Figma-verified) */
-  --nf-border-sidebar: #fffefe;
-  --nf-border-inner: #262626;
-  --nf-border-kbd: #404040;
+  /* Borders (light mode) */
+  --nf-border-sidebar: #e5e5e5;
+  --nf-border-inner: #e0e0e0;
+  --nf-border-kbd: #cccccc;
+
+  /* Hover/interaction overlays (light mode) */
+  --nf-hover-bg: rgba(0,0,0,0.05);
+  --nf-press-bg: rgba(0,0,0,0.08);
 
   /* Radii (Figma-verified) */
   --nf-radius-xs: 4px;
@@ -196,6 +218,51 @@
 }
 
 .dark {
+  /* Krea Design Tokens — dark mode (Figma-verified) */
+  --nf-bg-sidebar: #000000;
+  --nf-bg-canvas: #0a0a0a;
+  --nf-bg-canvas-grid: #101010;
+  --nf-bg-outer: #121212;
+  --nf-bg-node-inner: #171717;
+  --nf-bg-node: #202020;
+  --nf-bg-muted: #262626;
+  --nf-bg-active: #404040;
+
+  --nf-text-primary: #ffffff;
+  --nf-text-sidebar: #f9f9f9;
+  --nf-text-button: #f5f5f5;
+  --nf-text-secondary: #e5e5e5;
+  --nf-text-tertiary: #d4d4d5;
+  --nf-text-muted: #a3a3a3;
+  --nf-text-icon: #a0a0a0;
+  --nf-text-label: #737373;
+  --nf-text-placeholder: #525252;
+
+  --nf-border-sidebar: #fffefe;
+  --nf-border-inner: #262626;
+  --nf-border-kbd: #404040;
+  --nf-edge-text: #ff8a00;
+  --nf-edge-upload-image: #4b7cff;
+  --nf-edge-upload-video: #00e27a;
+  --nf-edge-llm: #f6c31c;
+  --nf-edge-extract-frame: #ff1fb8;
+  --nf-edge-crop-image: #c236ff;
+  --nf-edge-krea-image: #4b7cff;
+  --nf-loader-start: var(--nf-text-primary);
+  --nf-loader-end: var(--nf-text-primary);
+  --nf-loader-glow: color-mix(in srgb, var(--nf-text-primary) 44%, transparent);
+  --nf-hero-overlay-start: color-mix(in srgb, var(--color-bg-primary) 84%, transparent);
+  --nf-hero-overlay-mid: color-mix(in srgb, var(--color-bg-primary) 58%, transparent);
+  --nf-hero-overlay-end: color-mix(in srgb, var(--color-bg-primary) 74%, transparent);
+  --nf-hero-text-on-image: var(--color-text-white);
+  --nf-hero-text-shadow: color-mix(in srgb, var(--color-bg-primary) 50%, transparent);
+  --nf-hero-cta-bg: var(--color-text-white);
+  --nf-hero-cta-text: var(--color-bg-primary);
+  --nf-hero-cta-border: color-mix(in srgb, var(--color-text-white) 40%, transparent);
+
+  --nf-hover-bg: rgba(255,255,255,0.06);
+  --nf-press-bg: rgba(255,255,255,0.08);
+
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -355,7 +422,7 @@
 
 .workflow-node__textarea:focus {
   outline: none;
-  border-color: #8b5cf6;
+  border-color: var(--nf-border-inner);
 }
 
 .workflow-node__textarea--small { min-height: 40px; }
@@ -384,7 +451,7 @@
 
 .workflow-node__input:focus {
   outline: none;
-  border-color: #8b5cf6;
+  border-color: var(--nf-border-inner);
 }
 
 .workflow-node__select {
@@ -500,7 +567,7 @@
 
 .workflow-node__number-input:focus {
   outline: none;
-  border-color: #8b5cf6;
+  border-color: var(--nf-border-inner);
 }
 
 .workflow-node__handle-labels {
@@ -599,14 +666,7 @@
   to { stroke-dashoffset: -8; }
 }
 
-/* React Flow overrides */
-.react-flow__edge-path {
-  stroke: #8b5cf6;
-  stroke-width: 2;
-  stroke-dasharray: 5 5;
-  animation: dashFlow 1s linear infinite;
-}
-
+/* React Flow overrides (old block — superseded below) */
 .react-flow__connection-path {
   stroke: #8b5cf6;
   stroke-width: 2;
@@ -643,6 +703,61 @@
 .nf-node--selected {
   border-color: var(--nf-accent-blue) !important;
   box-shadow: 0 0 0 2px rgba(0,128,255,0.25) !important;
+}
+
+/* Per-type selection colors — each has a breathing glow animation */
+.nf-node--selected-text {
+  border: 2px solid #F97316 !important;
+  animation: pulse-text 1.5s ease-in-out infinite !important;
+}
+.nf-node--selected-image {
+  border: 2px solid #3B82F6 !important;
+  animation: pulse-image 1.5s ease-in-out infinite !important;
+}
+.nf-node--selected-video {
+  border: 2px solid #22C55E !important;
+  animation: pulse-video 1.5s ease-in-out infinite !important;
+}
+.nf-node--selected-llm {
+  border: 2px solid #EAB308 !important;
+  animation: pulse-llm 1.5s ease-in-out infinite !important;
+}
+.nf-node--selected-extract {
+  border: 2px solid #EC4899 !important;
+  animation: pulse-extract 1.5s ease-in-out infinite !important;
+}
+.nf-node--selected-crop {
+  border: 2px solid #A855F7 !important;
+  animation: pulse-crop 1.5s ease-in-out infinite !important;
+}
+.nf-node--selected-krea {
+  border: 2px solid #3B82F6 !important;
+  animation: pulse-image 1.5s ease-in-out infinite !important;
+}
+
+@keyframes pulse-text {
+  0%, 100% { box-shadow: 0 0 0 0px rgba(249,115,22,0.4), 0 0 8px 2px rgba(249,115,22,0.3); }
+  50%       { box-shadow: 0 0 0 4px rgba(249,115,22,0.15), 0 0 20px 6px rgba(249,115,22,0.25); }
+}
+@keyframes pulse-image {
+  0%, 100% { box-shadow: 0 0 0 0px rgba(59,130,246,0.4), 0 0 8px 2px rgba(59,130,246,0.3); }
+  50%       { box-shadow: 0 0 0 4px rgba(59,130,246,0.15), 0 0 20px 6px rgba(59,130,246,0.25); }
+}
+@keyframes pulse-video {
+  0%, 100% { box-shadow: 0 0 0 0px rgba(34,197,94,0.4), 0 0 8px 2px rgba(34,197,94,0.3); }
+  50%       { box-shadow: 0 0 0 4px rgba(34,197,94,0.15), 0 0 20px 6px rgba(34,197,94,0.25); }
+}
+@keyframes pulse-llm {
+  0%, 100% { box-shadow: 0 0 0 0px rgba(234,179,8,0.4), 0 0 8px 2px rgba(234,179,8,0.3); }
+  50%       { box-shadow: 0 0 0 4px rgba(234,179,8,0.15), 0 0 20px 6px rgba(234,179,8,0.25); }
+}
+@keyframes pulse-extract {
+  0%, 100% { box-shadow: 0 0 0 0px rgba(236,72,153,0.4), 0 0 8px 2px rgba(236,72,153,0.3); }
+  50%       { box-shadow: 0 0 0 4px rgba(236,72,153,0.15), 0 0 20px 6px rgba(236,72,153,0.25); }
+}
+@keyframes pulse-crop {
+  0%, 100% { box-shadow: 0 0 0 0px rgba(168,85,247,0.4), 0 0 8px 2px rgba(168,85,247,0.3); }
+  50%       { box-shadow: 0 0 0 4px rgba(168,85,247,0.15), 0 0 20px 6px rgba(168,85,247,0.25); }
 }
 
 .nf-node--running {
@@ -750,7 +865,7 @@
 }
 .nf-node__textarea:focus {
   outline: none;
-  border-color: var(--nf-accent-blue);
+  border-color: var(--nf-border-inner);
 }
 .nf-node__textarea::placeholder { color: var(--nf-text-placeholder); }
 .nf-node__textarea--sm { min-height: 40px; }
@@ -775,7 +890,7 @@
 }
 .nf-node__input:focus {
   outline: none;
-  border-color: var(--nf-accent-blue);
+  border-color: var(--nf-border-inner);
 }
 .nf-node__input--connected {
   opacity: 0.4;
@@ -795,7 +910,7 @@
   font-family: inherit;
   box-sizing: border-box;
 }
-.nf-node__number:focus { outline: none; border-color: var(--nf-accent-blue); }
+.nf-node__number:focus { outline: none; border-color: var(--nf-border-inner); }
 .nf-node__number--connected {
   opacity: 0.4;
   cursor: not-allowed;
@@ -1072,10 +1187,11 @@
   animation: kreaShake 0.3s ease-in-out !important;
 }
 
-/* React Flow overrides — Figma-matched */
+/* React Flow overrides — Figma-matched. No dasharray; custom FlowingEdge handles animation. */
 .react-flow__edge-path {
   stroke: var(--nf-text-label);
   stroke-width: 1.5;
+  stroke-dasharray: none;
   fill: none;
 }
 
@@ -1133,8 +1249,39 @@
   transition: background 0.15s;
   padding: 0;
 }
-.nf-canvas-toolbar__item:hover { background: rgba(255,255,255,0.06); }
+.nf-canvas-toolbar__item:hover { background: var(--nf-hover-bg); }
+
+/* Theme-aware hover utility — replaces hover:!bg-white/5 in components */
+.nf-hover-item:hover {
+  background: var(--nf-hover-bg) !important;
+}
 .nf-canvas-toolbar__item--active { background: var(--nf-bg-active); }
+
+/* Node palette sidebar */
+.nf-palette-item-wrap {
+  position: relative;
+}
+.nf-palette-tooltip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--nf-bg-node);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--nf-radius-md);
+  padding: 4px 8px;
+  font-size: var(--nf-font-size-xs);
+  color: var(--nf-text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  z-index: 20;
+}
+.nf-palette-item-wrap:hover .nf-palette-tooltip {
+  opacity: 1;
+}
 
 /* Undo/Redo toolbar */
 .nf-undo-toolbar {
@@ -1162,6 +1309,25 @@
 }
 .nf-undo-toolbar__btn:hover { background: var(--nf-bg-muted); }
 .nf-undo-toolbar__btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.nf-undo-toolbar__shortcut {
+  height: 36px;
+  border-radius: var(--nf-radius-lg);
+  border: none;
+  background: var(--nf-bg-node);
+  color: var(--nf-text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: var(--nf-font-size-xs);
+  font-weight: 500;
+  font-family: var(--nf-font);
+  transition: background 0.15s;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04);
+}
+.nf-undo-toolbar__shortcut:hover { background: var(--nf-bg-muted); }
 
 /* Top-right action buttons — Figma layout */
 .nf-top-actions {
@@ -1335,7 +1501,7 @@
   font-family: inherit;
   font-size: var(--nf-font-size-base);
 }
-.nf-sidebar__item:hover { background: rgba(255,255,255,0.06); color: var(--nf-text-sidebar); }
+.nf-sidebar__item:hover { background: var(--nf-hover-bg); color: var(--nf-text-sidebar); }
 .nf-sidebar__item--active { background: var(--nf-bg-muted); color: var(--nf-text-sidebar); }
 
 .nf-sidebar--labels .nf-sidebar__item {
@@ -1375,7 +1541,7 @@
   opacity: 1 !important;
 }
 .nf-sidebar__tool-menu:hover {
-  background: rgba(255,255,255,0.06);
+  background: var(--nf-hover-bg);
 }
 
 @keyframes shimmer {
@@ -1396,14 +1562,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #737373;
+  color: var(--nf-text-label);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
   border: none;
   background: transparent;
   padding: 0;
 }
-.nf-sidebar__toggle:hover { background: rgba(255,255,255,0.06); color: #ccc; }
+.nf-sidebar__toggle:hover { background: var(--nf-hover-bg); color: var(--nf-text-muted); }
 
 .nf-sidebar__app-icon {
   width: 36px;
@@ -1470,7 +1636,7 @@
 
 .nf-sidebar__resize-handle:hover .nf-sidebar__resize-line,
 .nf-sidebar--resizing .nf-sidebar__resize-line {
-  background: rgba(255,255,255,0.95);
+  background: var(--nf-text-muted);
 }
 
 /* Right panel — Figma: 256px, #000, 12px padding */
@@ -1515,6 +1681,7 @@
 /* Pricing Slider Styles */
 .pricing-slider {
   -webkit-appearance: none;
+  -moz-appearance: none;
   appearance: none;
   width: 100%;
   height: 6px;
@@ -1522,6 +1689,8 @@
   border-radius: 9999px;
   cursor: pointer;
   position: relative;
+  /* allow horizontal drag on touch devices */
+  touch-action: none;
 }
 
 .pricing-slider::-webkit-slider-thumb {
@@ -1545,57 +1714,38 @@
   border: 2px solid #e5e7eb;
   box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
   cursor: pointer;
+  border: none;
 }
 
+/* Track fill uses a CSS variable --slider-fill so React can update it
+   inline without needing to target pseudo-elements directly.           */
 .pricing-slider::-webkit-slider-runnable-track {
   width: 100%;
   height: 6px;
   border-radius: 9999px;
-  background: #e5e7eb;
+  background: linear-gradient(
+    to right,
+    #171717 0%,
+    #171717 var(--slider-fill, 0%),
+    #e5e7eb var(--slider-fill, 0%),
+    #e5e7eb 100%
+  );
 }
 
 .pricing-slider::-moz-range-track {
   width: 100%;
   height: 6px;
   border-radius: 9999px;
-  background: #e5e7eb;
+  background: linear-gradient(
+    to right,
+    #171717 0%,
+    #171717 var(--slider-fill, 0%),
+    #e5e7eb var(--slider-fill, 0%),
+    #e5e7eb 100%
+  );
 }
 
-/* ── Light-theme overrides for studio/node-editor ── */
+/* Light-theme sidebar box-shadow override — only the shadow changes */
 :root:not(.dark) .nf-sidebar {
-  background: #ffffff;
-  box-shadow: 1px 0 0 #e5e5e5;
-  color: #111111;
-}
-:root:not(.dark) .nf-sidebar__item {
-  color: #374151;
-}
-:root:not(.dark) .nf-sidebar__item:hover {
-  background: rgba(0,0,0,0.05);
-  color: #111111;
-}
-:root:not(.dark) .nf-sidebar__item--active {
-  background: #f0f0f0;
-  color: #111111;
-}
-:root:not(.dark) .nf-sidebar__toggle {
-  color: #374151;
-}
-:root:not(.dark) .nf-sidebar__toggle:hover {
-  background: rgba(0,0,0,0.05);
-}
-:root:not(.dark) .nf-sidebar__resize-handle:hover .nf-sidebar__resize-line,
-:root:not(.dark) .nf-sidebar--resizing .nf-sidebar__resize-line {
-  background: rgba(0,0,0,0.3);
-}
-:root:not(.dark) .nf-sidebar__section-label {
-  color: #374151;
-}
-:root:not(.dark) .nf-sidebar__tool-menu:hover {
-  background: rgba(0,0,0,0.05);
-}
-
-/* Studio shell & nodes page light theme */
-:root:not(.dark) .nf-scroll {
-  color: #111111;
+  box-shadow: 1px 0 0 var(--nf-border-sidebar);
 }

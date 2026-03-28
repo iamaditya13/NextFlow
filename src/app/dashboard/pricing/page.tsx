@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useSettingsStore } from '@/stores/settingsStore'
 import {
   Check,
@@ -177,17 +178,14 @@ function formatNumber(n: number) {
 // ─── Main Page ─────────────────────────────────────────────────
 export default function PricingPage() {
   const {
-    billingPeriod,
-    setBillingPeriod,
-    maxComputeSlider,
-    setMaxComputeSlider,
-    businessComputeSlider,
-    setBusinessComputeSlider,
     openFaqIndex,
     setOpenFaqIndex,
     comparePlansTab,
     setComparePlansTab,
   } = useSettingsStore()
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly')
+  const [maxComputeSlider, setMaxComputeSlider] = useState(60000)
+  const [businessComputeSlider, setBusinessComputeSlider] = useState(80000)
 
   const isYearly = billingPeriod === 'yearly'
 
@@ -344,7 +342,11 @@ export default function PricingPage() {
                 max={100000}
                 step={1000}
                 value={maxComputeSlider}
-                onChange={(e) => setMaxComputeSlider(Number(e.target.value))}
+                onChange={(e) =>
+                  setMaxComputeSlider(
+                    Math.min(100000, Math.max(40000, Number(e.target.value))),
+                  )
+                }
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
               />
               <div className="flex justify-between text-xs text-gray-400 mt-1">
@@ -391,7 +393,11 @@ export default function PricingPage() {
                 max={1500000}
                 step={10000}
                 value={businessComputeSlider}
-                onChange={(e) => setBusinessComputeSlider(Number(e.target.value))}
+                onChange={(e) =>
+                  setBusinessComputeSlider(
+                    Math.min(1500000, Math.max(20000, Number(e.target.value))),
+                  )
+                }
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
               />
               <div className="flex justify-between text-xs text-gray-400 mt-1">

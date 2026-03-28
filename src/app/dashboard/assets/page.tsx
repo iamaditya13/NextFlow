@@ -4,7 +4,7 @@ import { AssetsPage } from '@/components/dashboard/AssetsPage'
 
 export default async function AssetsRoute() {
   const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
+  if (!userId) redirect('/sign-up')
 
   return <AssetsPage />
 }

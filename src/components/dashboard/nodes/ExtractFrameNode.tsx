@@ -20,7 +20,7 @@ export function ExtractFrameNode({ data, selected }: any) {
   const isTimestampConnected = timestampConnections.length > 0
 
   return (
-    <div className={`nf-node ${selected ? 'nf-node--selected' : ''} ${getStatusClass(status)}`}>
+    <div className={`nf-node ${selected ? 'nf-node--selected-extract' : ''} ${getStatusClass(status)}`}>
       <Handle type="target" position={Position.Left} id="video_url" className="nf-handle nf-handle--video" style={{ top: '35%' }} />
       <Handle type="target" position={Position.Left} id="timestamp" className="nf-handle nf-handle--number" style={{ top: '65%' }} />
 

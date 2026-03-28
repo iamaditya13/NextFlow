@@ -169,7 +169,8 @@ export function KreaImageNode({ data, selected }: NodeProps) {
                        dark:bg-[#141414] dark:text-white dark:placeholder-[#525252]
                        bg-[#f5f5f5] text-gray-900 placeholder-gray-400
                        dark:border-white/[0.15] border-black/[0.08] border
-                       focus:outline-none focus:ring-1 focus:ring-[#3b82f6]/50 nodrag"
+                       focus:outline-none nodrag"
+            style={{ borderColor: 'var(--nf-border-inner)' }}
           />
         </div>
 

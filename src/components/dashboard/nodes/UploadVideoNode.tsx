@@ -33,7 +33,7 @@ export function UploadVideoNode({ data, selected }: any) {
   }
 
   return (
-    <div className={`nf-node ${selected ? 'nf-node--selected' : ''} ${getStatusClass(status)}`}>
+    <div className={`nf-node ${selected ? 'nf-node--selected-video' : ''} ${getStatusClass(status)}`}>
       <div className="nf-node__header">
         <span className="nf-node__title">{data.label || 'Upload Video'}</span>
         <span className={`nf-node__status-dot nf-node__status-dot--${status}`} />

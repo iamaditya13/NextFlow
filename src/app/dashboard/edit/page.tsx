@@ -4,7 +4,7 @@ import { EditPage } from '@/components/dashboard/EditPage'
 
 export default async function EditRoute() {
   const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
+  if (!userId) redirect('/sign-up')
 
   return <EditPage />
 }

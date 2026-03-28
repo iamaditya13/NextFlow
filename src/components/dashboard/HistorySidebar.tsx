@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, Clock, History, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2, PanelRightClose, XCircle } from 'lucide-react'
 
 interface NodeResult {
   id: string
@@ -31,12 +31,12 @@ interface HistorySidebarProps {
   activeRunId: string | null
 }
 
-const STATUS_BADGES: Record<string, { emoji: string; color: string }> = {
-  SUCCESS: { emoji: '✅', color: '#22c55e' },
-  FAILED: { emoji: '❌', color: '#ef4444' },
-  RUNNING: { emoji: '⏳', color: '#eab308' },
-  PARTIAL: { emoji: '⚠️', color: '#f97316' },
-  PENDING: { emoji: '⏳', color: '#6b7280' },
+const STATUS_META: Record<string, { Icon: React.ComponentType<{ size?: number; color?: string }>, color: string }> = {
+  SUCCESS: { Icon: CheckCircle2, color: '#22c55e' },
+  FAILED: { Icon: XCircle, color: '#ef4444' },
+  RUNNING: { Icon: Loader2, color: '#eab308' },
+  PARTIAL: { Icon: AlertTriangle, color: '#f97316' },
+  PENDING: { Icon: Loader2, color: '#6b7280' },
 }
 
 function formatDuration(ms: number | null | undefined): string {
@@ -73,8 +73,9 @@ export function HistorySidebar({
   const [loading, setLoading] = useState(false)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
 
-  const fetchRuns = useCallback(async () => {
+  const fetchRuns = useCallback(async (withLoading = false) => {
     if (!workflowId) return
+    if (withLoading) setLoading(true)
     try {
       const res = await fetch(`/api/workflows/${workflowId}/runs`)
       const json = await res.json()
@@ -83,14 +84,15 @@ export function HistorySidebar({
       }
     } catch {
       // silent
+    } finally {
+      if (withLoading) setLoading(false)
     }
   }, [workflowId])
 
   // Fetch on mount and when workflowId changes
   useEffect(() => {
     if (isOpen) {
-      setLoading(true)
-      fetchRuns().finally(() => setLoading(false))
+      void fetchRuns(true)
     }
   }, [isOpen, workflowId, fetchRuns])
 
@@ -98,7 +100,7 @@ export function HistorySidebar({
   useEffect(() => {
     if (activeRunId && isOpen) {
       pollRef.current = setInterval(() => {
-        fetchRuns()
+        void fetchRuns()
       }, 1500)
     }
     return () => {
@@ -150,23 +152,24 @@ export function HistorySidebar({
       {/* Run list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
         {loading && runs.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 32, color: '#555', fontSize: 12 }}>
+          <div style={{ textAlign: 'center', padding: 32, color: 'var(--nf-text-muted)', fontSize: 12 }}>
             Loading...
           </div>
         )}
 
         {!loading && runs.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 32, color: '#555', fontSize: 12 }}>
+          <div style={{ textAlign: 'center', padding: 32, color: 'var(--nf-text-muted)', fontSize: 12 }}>
             No runs yet
           </div>
         )}
 
         {runs.map((run, idx) => {
-          const badge = STATUS_BADGES[run.status] || STATUS_BADGES.PENDING
+          const meta = STATUS_META[run.status] || STATUS_META.PENDING
+          const RunIcon = meta.Icon
           const isExpanded = expandedRunId === run.id
 
           return (
-            <div key={run.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
+            <div key={run.id} style={{ borderBottom: '1px solid var(--nf-border-inner)' }}>
               {/* Run header */}
               <button
                 onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
@@ -176,7 +179,7 @@ export function HistorySidebar({
                   alignItems: 'flex-start',
                   gap: 8,
                   padding: '10px 12px',
-                  background: isExpanded ? '#141414' : 'transparent',
+                  background: isExpanded ? 'var(--nf-bg-node-inner)' : 'transparent',
                   border: 'none',
                   cursor: 'pointer',
                   textAlign: 'left',
@@ -185,22 +188,22 @@ export function HistorySidebar({
               >
                 <span style={{ marginTop: 2 }}>
                   {isExpanded ? (
-                    <ChevronDown size={12} color="#666" />
+                    <ChevronDown size={12} color="var(--nf-text-muted)" />
                   ) : (
-                    <ChevronRight size={12} color="#666" />
+                    <ChevronRight size={12} color="var(--nf-text-muted)" />
                   )}
                 </span>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#e5e5e5' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--nf-text-primary)' }}>
                       Run #{runs.length - idx}
                     </span>
-                    <span style={{ fontSize: 11 }}>{badge.emoji}</span>
+                    <RunIcon size={12} color={meta.color} />
                     <span
                       style={{
                         fontSize: 10,
-                        color: badge.color,
+                        color: meta.color,
                         fontWeight: 500,
                         marginLeft: 'auto',
                       }}
@@ -208,7 +211,7 @@ export function HistorySidebar({
                       {formatDuration(run.duration)}
                     </span>
                   </div>
-                  <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: 'var(--nf-text-muted)', marginTop: 2 }}>
                     {formatDate(run.startedAt)} · ({scopeLabel(run.scope, run.nodeResults)})
                   </div>
                 </div>
@@ -218,7 +221,8 @@ export function HistorySidebar({
               {isExpanded && (
                 <div style={{ padding: '4px 12px 10px 32px' }}>
                   {run.nodeResults.map((nr, nrIdx) => {
-                    const nrBadge = STATUS_BADGES[nr.status] || STATUS_BADGES.PENDING
+                    const nrMeta = STATUS_META[nr.status] || STATUS_META.PENDING
+                    const NrIcon = nrMeta.Icon
                     const isLast = nrIdx === run.nodeResults.length - 1
 
                     return (
@@ -231,7 +235,7 @@ export function HistorySidebar({
                             top: 0,
                             bottom: isLast ? '50%' : 0,
                             width: 1,
-                            background: '#2a2a2a',
+                            background: 'var(--nf-border-inner)',
                           }}
                         />
                         <div
@@ -241,7 +245,7 @@ export function HistorySidebar({
                             top: '50%',
                             width: 8,
                             height: 1,
-                            background: '#2a2a2a',
+                            background: 'var(--nf-border-inner)',
                           }}
                         />
 
@@ -254,16 +258,16 @@ export function HistorySidebar({
                               fontSize: 11,
                             }}
                           >
-                            <span style={{ color: '#ccc', fontWeight: 500 }}>
+                            <span style={{ color: 'var(--nf-text-secondary)', fontWeight: 500 }}>
                               {nr.nodeType}
                             </span>
-                            <span style={{ color: '#555', fontSize: 10 }}>
+                            <span style={{ color: 'var(--nf-text-muted)', fontSize: 10 }}>
                               ({nr.nodeId})
                             </span>
-                            <span style={{ marginLeft: 'auto', fontSize: 10 }}>
-                              {nrBadge.emoji}
+                            <span style={{ marginLeft: 'auto' }}>
+                              <NrIcon size={11} color={nrMeta.color} />
                             </span>
-                            <span style={{ color: '#666', fontSize: 10 }}>
+                            <span style={{ color: 'var(--nf-text-muted)', fontSize: 10 }}>
                               {formatDuration(nr.duration)}
                             </span>
                           </div>
@@ -272,7 +276,7 @@ export function HistorySidebar({
                             <div
                               style={{
                                 fontSize: 10,
-                                color: '#666',
+                                color: 'var(--nf-text-muted)',
                                 marginTop: 2,
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',

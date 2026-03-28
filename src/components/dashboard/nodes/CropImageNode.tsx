@@ -27,7 +27,7 @@ export function CropImageNode({ data, selected }: any) {
   const isHC = hConn.length > 0
 
   return (
-    <div className={`nf-node ${selected ? 'nf-node--selected' : ''} ${getStatusClass(status)}`}>
+    <div className={`nf-node ${selected ? 'nf-node--selected-crop' : ''} ${getStatusClass(status)}`}>
       <Handle type="target" position={Position.Left} id="image_url" className="nf-handle nf-handle--image" style={{ top: '20%' }} />
       <Handle type="target" position={Position.Left} id="x_percent" className="nf-handle nf-handle--number" style={{ top: '36%' }} />
       <Handle type="target" position={Position.Left} id="y_percent" className="nf-handle nf-handle--number" style={{ top: '52%' }} />

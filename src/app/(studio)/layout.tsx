@@ -7,13 +7,13 @@ export default async function StudioLayout({
   children: React.ReactNode
 }) {
   const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
+  if (!userId) redirect('/sign-up')
 
   return (
     <div
       style={{
         height: '100vh',
-        background: '#101010',
+        background: 'var(--nf-bg-canvas)',
         overflow: 'hidden',
       }}
     >

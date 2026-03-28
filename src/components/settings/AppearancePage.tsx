@@ -1,6 +1,7 @@
 'use client'
 
 import { useSettingsStore, Theme, SidebarIconStyle, SessionsDisplay } from '@/stores/settingsStore'
+import { useTheme } from '@/components/theme/theme-provider'
 
 function Toggle({
   checked,
@@ -62,7 +63,14 @@ const sessionsOptions: { value: SessionsDisplay; label: string }[] = [
 
 export default function AppearancePage() {
   const theme = useSettingsStore((s) => s.theme)
-  const setTheme = useSettingsStore((s) => s.setTheme)
+  const setStoreTheme = useSettingsStore((s) => s.setTheme)
+  const { setTheme: setProviderTheme } = useTheme()
+
+  function setTheme(val: Theme) {
+    setStoreTheme(val)
+    if (val !== 'system') setProviderTheme(val)
+    else setProviderTheme('dark') // fallback for system
+  }
   const sidebarIconStyle = useSettingsStore((s) => s.sidebarIconStyle)
   const setSidebarIconStyle = useSettingsStore((s) => s.setSidebarIconStyle)
   const sessionsDisplay = useSettingsStore((s) => s.sessionsDisplay)

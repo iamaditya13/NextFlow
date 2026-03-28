@@ -33,7 +33,7 @@ export function UploadImageNode({ data, selected }: any) {
   }
 
   return (
-    <div className={`nf-node ${selected ? 'nf-node--selected' : ''} ${getStatusClass(status)}`}>
+    <div className={`nf-node ${selected ? 'nf-node--selected-image' : ''} ${getStatusClass(status)}`}>
       <div className="nf-node__header">
         <span className="nf-node__title">{data.label || 'Upload Image'}</span>
         <span className={`nf-node__status-dot nf-node__status-dot--${status}`} />

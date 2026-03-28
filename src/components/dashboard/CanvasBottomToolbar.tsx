@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Plus, MousePointer2, Hand, Scissors, LayoutGrid, Keyboard } from 'lucide-react'
+import { Plus, MousePointer2, Hand, Scissors, LayoutGrid } from 'lucide-react'
 
 type CanvasMode = 'select' | 'pan' | 'scissor' | 'connect'
 
@@ -25,8 +25,6 @@ interface CanvasBottomToolbarProps {
   onPresets?: () => void
   canvasMode?: CanvasMode
   onModeChange?: (mode: CanvasMode) => void
-  zoom?: number
-  onToggleShortcuts?: () => void
 }
 
 export function CanvasBottomToolbar({
@@ -34,8 +32,6 @@ export function CanvasBottomToolbar({
   onPresets,
   canvasMode = 'select',
   onModeChange,
-  zoom = 1,
-  onToggleShortcuts,
 }: CanvasBottomToolbarProps) {
   const [tooltip, setTooltip] = useState<{
     label: string
@@ -71,8 +67,6 @@ export function CanvasBottomToolbar({
       onModeChange?.(tool.mode as CanvasMode)
     }
   }
-
-  const zoomPct = Math.round(zoom * 100)
 
   return (
     <>
@@ -122,34 +116,6 @@ export function CanvasBottomToolbar({
             </button>
           )
         })}
-      </div>
-
-      {/* Bottom-right: zoom + keyboard shortcuts */}
-      <div
-        className="absolute bottom-4 right-4 flex items-center gap-2 z-10"
-      >
-        <div
-          className="h-8 px-3 flex items-center rounded-lg text-[12px] font-medium
-                     dark:bg-[#202020] bg-white
-                     dark:text-[#a3a3a3] text-gray-600
-                     dark:border-white/[0.06] border-black/[0.08] border
-                     shadow-sm select-none"
-        >
-          {zoomPct}%
-        </div>
-
-        <button
-          type="button"
-          onClick={onToggleShortcuts}
-          className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-[12px] font-medium
-                     dark:bg-[#202020] bg-white
-                     dark:text-[#a3a3a3] text-gray-600
-                     dark:border-white/[0.06] border-black/[0.08] border
-                     shadow-sm hover:opacity-80 transition-opacity"
-        >
-          <Keyboard size={14} />
-          <span>Keyboard shortcuts</span>
-        </button>
       </div>
     </>
   )

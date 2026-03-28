@@ -18,9 +18,9 @@ import { StudioShell } from '@/components/dashboard/StudioShell'
 const optionBtnBase = {
   height: 36,
   borderRadius: 10,
-  border: '1px solid #262626',
-  background: '#141414',
-  color: '#e5e5e5',
+  border: '1px solid var(--nf-border-inner)',
+  background: 'var(--nf-bg-node-inner)',
+  color: 'var(--nf-text-secondary)',
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
@@ -45,8 +45,8 @@ export default function VideoPage() {
       <div
         style={{
           minHeight: '100vh',
-          background: '#0a0a0a',
-          color: '#f5f5f5',
+          background: 'var(--nf-bg-canvas)',
+          color: 'var(--nf-text-primary)',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
@@ -60,9 +60,9 @@ export default function VideoPage() {
               width: 166,
               height: 36,
               borderRadius: 10,
-              border: '1px solid #262626',
-              background: '#121212',
-              color: '#f5f5f5',
+              border: '1px solid var(--nf-border-inner)',
+              background: 'var(--nf-bg-node-inner)',
+              color: 'var(--nf-text-primary)',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -72,10 +72,10 @@ export default function VideoPage() {
               fontFamily: 'inherit',
             }}
           >
-            <span style={{ color: '#737373' }}>Model</span>
+            <span style={{ color: 'var(--nf-text-label)' }}>Model</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <span>Wan 2.1</span>
-              <ChevronDown size={14} style={{ color: '#737373' }} />
+              <ChevronDown size={14} style={{ color: 'var(--nf-text-label)' }} />
             </span>
           </button>
         </div>
@@ -91,7 +91,7 @@ export default function VideoPage() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Clapperboard size={40} style={{ color: '#a3a3a3' }} />
+            <Clapperboard size={40} style={{ color: 'var(--nf-text-muted)' }} />
             <h1
               style={{
                 margin: 0,
@@ -124,8 +124,8 @@ export default function VideoPage() {
               maxWidth: '100%',
               minHeight: 110,
               borderRadius: 14,
-              border: '1px solid #262626',
-              background: '#121212',
+              border: '1px solid var(--nf-border-inner)',
+              background: 'var(--nf-bg-node-inner)',
               padding: '13px 13px 0',
               display: 'flex',
               flexDirection: 'column',
@@ -146,7 +146,7 @@ export default function VideoPage() {
                 border: 'none',
                 outline: 'none',
                 background: 'transparent',
-                color: '#f5f5f5',
+                color: 'var(--nf-text-primary)',
                 fontSize: 14,
                 lineHeight: '20px',
                 padding: '6px 10px',
@@ -198,14 +198,14 @@ export default function VideoPage() {
                       transform: 'translateX(-50%)',
                       width: 128,
                       borderRadius: 10,
-                      border: '1px solid #262626',
-                      background: '#121212',
+                      border: '1px solid var(--nf-border-inner)',
+                      background: 'var(--nf-bg-node-inner)',
                       padding: 4,
                       boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
                       zIndex: 50,
                     }}
                   >
-                    <div style={{ textAlign: 'center', padding: '8px 0 6px', fontSize: 12, color: '#737373', fontWeight: 500 }}>
+                    <div style={{ textAlign: 'center', padding: '8px 0 6px', fontSize: 12, color: 'var(--nf-text-label)', fontWeight: 500 }}>
                       Resolution
                     </div>
                     {(['720p', '480p'] as const).map((res) => (
@@ -218,8 +218,11 @@ export default function VideoPage() {
                           height: 42,
                           borderRadius: 8,
                           border: 'none',
-                          background: resolution === res ? '#1a1a2e' : 'transparent',
-                          color: resolution === res ? '#f5f5f5' : '#a3a3a3',
+                          background:
+                            resolution === res
+                              ? 'color-mix(in srgb, var(--nf-accent-blue) 20%, var(--nf-bg-node-inner))'
+                              : 'transparent',
+                          color: resolution === res ? 'var(--nf-text-primary)' : 'var(--nf-text-muted)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -256,14 +259,14 @@ export default function VideoPage() {
                       right: 0,
                       width: 212,
                       borderRadius: 10,
-                      border: '1px solid #262626',
-                      background: '#121212',
+                      border: '1px solid var(--nf-border-inner)',
+                      background: 'var(--nf-bg-node-inner)',
                       padding: 8,
                       boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
                       zIndex: 50,
                     }}
                   >
-                    <div style={{ textAlign: 'center', padding: '4px 0 8px', fontSize: 12, color: '#737373', fontWeight: 500 }}>
+                    <div style={{ textAlign: 'center', padding: '4px 0 8px', fontSize: 12, color: 'var(--nf-text-label)', fontWeight: 500 }}>
                       Aspect Ratio
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
@@ -275,9 +278,15 @@ export default function VideoPage() {
                           style={{
                             height: 100,
                             borderRadius: 10,
-                            border: `1px solid ${aspectRatio === ar ? '#304060' : '#262626'}`,
-                            background: aspectRatio === ar ? '#141828' : '#141414',
-                            color: aspectRatio === ar ? '#f5f5f5' : '#a3a3a3',
+                            border:
+                              aspectRatio === ar
+                                ? '1px solid color-mix(in srgb, var(--nf-accent-blue) 45%, transparent)'
+                                : '1px solid var(--nf-border-inner)',
+                            background:
+                              aspectRatio === ar
+                                ? 'color-mix(in srgb, var(--nf-accent-blue) 16%, var(--nf-bg-node-inner))'
+                                : 'var(--nf-bg-node-inner)',
+                            color: aspectRatio === ar ? 'var(--nf-text-primary)' : 'var(--nf-text-muted)',
                             fontSize: 12,
                             fontWeight: 500,
                             cursor: 'pointer',
@@ -307,8 +316,8 @@ export default function VideoPage() {
                   height: 36,
                   borderRadius: 10,
                   border: 'none',
-                  background: '#f5f5f5',
-                  color: '#0a0a0a',
+                  background: 'var(--nf-text-primary)',
+                  color: 'var(--nf-bg-canvas)',
                   display: 'grid',
                   placeItems: 'center',
                   cursor: 'pointer',

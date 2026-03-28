@@ -2,33 +2,29 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Activity,
   ArrowRight,
   BarChart2,
-  Box,
+  Bot,
   ChevronDown,
   ChevronRight,
   Clock,
   CornerDownLeft,
   CreditCard,
-  Edit3,
+  Crop,
   Film,
   Folder,
   Home,
   Image as ImageIcon,
   LogOut,
-  Mic,
   MoreHorizontal,
-  Move,
   Network,
   PanelLeft,
   Plus,
   Search,
   Settings,
-  Sparkles,
   Trash2,
+  Type,
   Video,
-  Wand2,
   Zap,
 } from "lucide-react";
 import { useClerk, useUser } from "@clerk/nextjs";
@@ -38,7 +34,6 @@ import { useSettingsStore } from "@/stores/settingsStore";
 
 const NAV_ITEMS = [
   { name: "Home", icon: Home, href: "/dashboard" },
-  { name: "Train Lora", icon: Sparkles, href: "/train" },
   { name: "Node Editor", icon: Network, href: "/nodes" },
   { name: "Assets", icon: Folder, href: "/dashboard/assets" },
 ];
@@ -58,23 +53,17 @@ type WorkflowSummary = {
 };
 
 const TOOLS_ITEMS: ToolItem[] = [
-  { name: "Image", icon: ImageIcon, href: "/image", nodeType: "uploadImage" },
-  { name: "Video", icon: Video, href: "/video", nodeType: "uploadVideo" },
-  { name: "Enhancer", icon: Wand2, href: "/enhancer" },
-  { name: "Nano Banana", icon: Zap, href: "/nano-banana" },
-  { name: "Realtime", icon: Activity, href: "/realtime" },
-  { name: "Edit", icon: Edit3, href: "/edit" },
-];
-
-const TOOLS_EXTRA: ToolItem[] = [
-  { name: "Video Lipsync", icon: Mic, href: "#" },
-  { name: "Motion Transfer", icon: Move, href: "#" },
-  { name: "3D Objects", icon: Box, href: "#" },
-  { name: "Video Restyle", icon: Film, href: "#" },
+  { name: "Image", icon: ImageIcon, href: "#", nodeType: "uploadImage" },
+  { name: "Video", icon: Video, href: "#", nodeType: "uploadVideo" },
+  { name: "Crop Image", icon: Crop, href: "#", nodeType: "cropImage" },
+  { name: "Text", icon: Type, href: "#", nodeType: "text" },
+  { name: "LLM", icon: Bot, href: "#", nodeType: "llm" },
+  { name: "Extract Frame", icon: Film, href: "#", nodeType: "extractFrame" },
 ];
 
 interface GlobalSidebarProps {
   initialExpanded?: boolean;
+  onAddNode?: (type: string) => void;
 }
 
 const SIDEBAR_MIN_COLLAPSED_WIDTH = 52;
@@ -84,7 +73,7 @@ const SIDEBAR_MAX_EXPANDED_WIDTH = 256;
 const SIDEBAR_COLLAPSE_LIMIT_WIDTH = 84;
 const SIDEBAR_COLLAPSED_LABEL_BREAKPOINT = SIDEBAR_COLLAPSE_LIMIT_WIDTH;
 
-export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
+export function GlobalSidebar({ initialExpanded = false, onAddNode }: GlobalSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useUser();
@@ -97,7 +86,6 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
     SIDEBAR_MIN_COLLAPSED_WIDTH,
   );
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
-  const [showMore, setShowMore] = useState(false);
   const [toolsExpanded, setToolsExpanded] = useState(true);
   const [sessionsExpanded, setSessionsExpanded] = useState(true);
   const [showUserPanel, setShowUserPanel] = useState(false);
@@ -340,6 +328,11 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
     setExpanded(true);
   };
 
+  // On canvas pages (individual node editor), hide the Sessions section
+  const isCanvasPage =
+    /^\/nodes\/[^/]+$/.test(pathname) ||
+    /^\/dashboard\/node-editor\/[^/]+$/.test(pathname)
+
   return (
     <nav
       ref={sidebarRef}
@@ -390,14 +383,14 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 background: "transparent",
                 border: "none",
                 cursor: "pointer",
-                color: "#f9f9f9",
+                color: "var(--nf-text-sidebar)",
               }}
             >
               <span style={{ fontSize: 13.5, fontWeight: 500 }}>Tools</span>
               <ChevronDown
                 size={14}
                 style={{
-                  color: "#737373",
+                  color: "var(--nf-text-label)",
                   transform: toolsExpanded ? "rotate(0deg)" : "rotate(-90deg)",
                   transition: "transform 0.15s",
                 }}
@@ -411,7 +404,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 textAlign: "center",
               }}
             >
-              <span style={{ fontSize: 13.5, fontWeight: 500, color: "#f9f9f9" }}>
+              <span style={{ fontSize: 13.5, fontWeight: 500, color: "var(--nf-text-sidebar)" }}>
                 Tools
               </span>
             </div>
@@ -455,6 +448,13 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                           setTooltipInfo({ label: item.name, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() });
                         }
                       }}
+                      onClick={(e) => {
+                        if (item.href === "#") e.preventDefault();
+                        if (item.nodeType && onAddNode) {
+                          e.preventDefault();
+                          onAddNode(item.nodeType);
+                        }
+                      }}
                       onMouseLeave={() => setTooltipInfo(null)}
                     >
                       <Icon size={20} />
@@ -473,7 +473,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                           justifyContent: "center",
                           background: "transparent",
                           border: "none",
-                          color: "#737373",
+                          color: "var(--nf-text-label)",
                           cursor: "pointer",
                           borderRadius: 6,
                           flexShrink: 0,
@@ -489,60 +489,12 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                   </div>
                 );
               })}
-              {showMore &&
-                TOOLS_EXTRA.map((item) => {
-                  const Icon = item.icon;
-                  const active = item.href !== "#" && isActiveHref(item.href);
-                  return (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className={`nf-sidebar__item ${active ? "nf-sidebar__item--active" : ""}`}
-                      onMouseEnter={(e) => {
-                        if (!showSidebarLabels) {
-                          setTooltipInfo({ label: item.name, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() });
-                        }
-                      }}
-                      onMouseLeave={() => setTooltipInfo(null)}
-                    >
-                      <Icon size={20} />
-                      <span className="nf-sidebar__item-label">{item.name}</span>
-                    </Link>
-                  );
-                })}
-              <button
-                type="button"
-                onClick={() => setShowMore(!showMore)}
-                title={showMore ? "Less" : "More"}
-                style={{
-                  width: "100%",
-                  height: 36,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: showSidebarLabels ? "0 16px" : "0",
-                  justifyContent: showSidebarLabels ? "flex-start" : "center",
-                  background: "transparent",
-                  border: "none",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-                className="hover:!bg-white/5"
-              >
-                <MoreHorizontal size={20} style={{ color: "rgba(250,250,250,0.3)", flexShrink: 0 }} />
-                {showSidebarLabels && (
-                  <span style={{ fontSize: 13.8, fontWeight: 500, color: "rgba(250,250,250,0.3)" }}>
-                    {showMore ? "Less" : "More"}
-                  </span>
-                )}
-              </button>
             </div>
           )}
         </div>
 
-        {/* Sessions section */}
-        {showSidebarLabels && (
+        {/* Sessions section — hidden on canvas pages */}
+        {showSidebarLabels && !isCanvasPage && (
           <div style={{ marginTop: 10, padding: "0 2px" }}>
             {/* Sessions header with hover search icon */}
             <div
@@ -565,7 +517,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                   background: "transparent",
                   border: "none",
                   cursor: "pointer",
-                  color: "#7f7f7f",
+                  color: "var(--nf-text-muted)",
                   padding: 0,
                 }}
               >
@@ -599,7 +551,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                   border: "none",
                   borderRadius: 6,
                   cursor: "pointer",
-                  color: "rgba(255,255,255,0.3)",
+                  color: "var(--nf-text-placeholder)",
                   transition: "opacity 0.15s",
                   padding: 0,
                 }}
@@ -618,32 +570,32 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                     style={{ position: "relative" }}
                   >
                     <Link
-                      href={`/nodes/${workflow.id}`}
+                      href={`/dashboard/node-editor/${workflow.id}`}
                       style={{
                         display: "flex",
                         alignItems: "center",
                         gap: 10,
                         padding: "6px 8px",
                         borderRadius: 8,
-                        color: "#f4f4f5",
+                        color: "var(--nf-text-sidebar)",
                         textDecoration: "none",
                         height: 44,
                       }}
-                      className="hover:!bg-white/5"
+                      className="nf-hover-item"
                     >
                       <span
                         style={{
                           width: 28,
                           height: 28,
                           borderRadius: 7,
-                          background: "#1e1e1e",
-                          border: "1px solid rgba(255,255,255,0.08)",
+                          background: "var(--nf-bg-node-inner)",
+                          border: "1px solid var(--nf-border-inner)",
                           display: "grid",
                           placeItems: "center",
                           flexShrink: 0,
                         }}
                       >
-                        <Network size={13} style={{ color: "rgba(255,255,255,0.5)" }} />
+                        <Network size={13} style={{ color: "var(--nf-text-label)" }} />
                       </span>
                       <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                         <p
@@ -651,7 +603,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                             margin: 0,
                             fontSize: 13,
                             fontWeight: 500,
-                            color: "#fff",
+                            color: "var(--nf-text-primary)",
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -663,7 +615,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                           style={{
                             margin: 0,
                             fontSize: 11,
-                            color: "rgba(255,255,255,0.3)",
+                            color: "var(--nf-text-placeholder)",
                           }}
                         >
                           Node Editor
@@ -699,7 +651,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                         border: "none",
                         borderRadius: 6,
                         cursor: "pointer",
-                        color: "rgba(255,255,255,0.4)",
+                        color: "var(--nf-text-muted)",
                         transition: "opacity 0.15s",
                         padding: 0,
                       }}
@@ -722,7 +674,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                       const json = await res.json();
                       if (res.ok && json?.success && json?.data?.id) {
                         void fetchRecentWorkflows();
-                        router.push(`/nodes/${json.data.id}`);
+                        router.push(`/dashboard/node-editor/${json.data.id}`);
                       } else {
                         router.push("/nodes/new");
                       }
@@ -740,23 +692,23 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                     background: "transparent",
                     border: "none",
                     cursor: "pointer",
-                    color: "#fff",
+                    color: "var(--nf-text-primary)",
                   }}
-                  className="hover:!bg-white/5"
+                  className="nf-hover-item"
                 >
                   <span
                     style={{
                       width: 28,
                       height: 28,
                       borderRadius: 7,
-                      background: "#1e1e1e",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "var(--nf-bg-node-inner)",
+                      border: "1px solid var(--nf-border-inner)",
                       display: "grid",
                       placeItems: "center",
                       flexShrink: 0,
                     }}
                   >
-                    <Plus size={13} style={{ color: "rgba(255,255,255,0.5)" }} />
+                    <Plus size={13} style={{ color: "var(--nf-text-label)" }} />
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 500 }}>New Session</span>
                 </button>
@@ -787,8 +739,8 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
             style={{
               width: 560,
               maxWidth: "calc(100vw - 40px)",
-              background: "#1c1c1c",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "var(--nf-bg-node)",
+              border: "1px solid var(--nf-border-inner)",
               borderRadius: 16,
               boxShadow: "0 32px 72px rgba(0,0,0,0.65)",
               overflow: "hidden",
@@ -804,10 +756,10 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 gap: 12,
                 padding: "0 16px",
                 height: 56,
-                borderBottom: "1px solid rgba(255,255,255,0.08)",
+                borderBottom: "1px solid var(--nf-border-inner)",
               }}
             >
-              <Clock size={20} style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+              <Clock size={20} style={{ color: "var(--nf-text-placeholder)", flexShrink: 0 }} />
               <input
                 value={sessionQuery}
                 onChange={(e) => {
@@ -822,7 +774,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                     e.preventDefault();
                     setActiveSessionIdx((i) => Math.max(i - 1, 0));
                   } else if (e.key === "Enter" && filteredSessions[activeSessionIdx]) {
-                    router.push(`/nodes/${filteredSessions[activeSessionIdx].id}`);
+                    router.push(`/dashboard/node-editor/${filteredSessions[activeSessionIdx].id}`);
                     setShowSessionsPanel(false);
                   }
                 }}
@@ -832,7 +784,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                   flex: 1,
                   border: "none",
                   background: "transparent",
-                  color: "#fff",
+                  color: "var(--nf-text-primary)",
                   fontSize: 15,
                   fontFamily: "inherit",
                   outline: "none",
@@ -846,12 +798,12 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
               style={{ overflowY: "auto", maxHeight: 400, padding: 8 }}
             >
               {loadingRecentWorkflows && (
-                <div style={{ color: "#8a8a8a", fontSize: 13, padding: "10px 8px" }}>
+                <div style={{ color: "var(--nf-text-muted)", fontSize: 13, padding: "10px 8px" }}>
                   Loading sessions…
                 </div>
               )}
               {!loadingRecentWorkflows && filteredSessions.length === 0 && (
-                <div style={{ color: "#8a8a8a", fontSize: 13, padding: "10px 8px" }}>
+                <div style={{ color: "var(--nf-text-muted)", fontSize: 13, padding: "10px 8px" }}>
                   No sessions found
                 </div>
               )}
@@ -861,7 +813,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                     key={workflow.id}
                     type="button"
                     onClick={() => {
-                      router.push(`/nodes/${workflow.id}`);
+                      router.push(`/dashboard/node-editor/${workflow.id}`);
                       setShowSessionsPanel(false);
                     }}
                     onMouseEnter={() => setActiveSessionIdx(index)}
@@ -876,7 +828,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                       cursor: "pointer",
                       textAlign: "left",
                       fontFamily: "inherit",
-                      color: "#f4f4f5",
+                      color: "var(--nf-text-sidebar)",
                       background:
                         index === activeSessionIdx ? "#3b5bdb" : "transparent",
                       transition: "background 0.1s",
@@ -888,13 +840,13 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                         width: 32,
                         height: 32,
                         borderRadius: "50%",
-                        background: index === activeSessionIdx ? "rgba(0,0,0,0.2)" : "#262626",
+                        background: index === activeSessionIdx ? "rgba(0,0,0,0.2)" : "var(--nf-bg-muted)",
                         display: "grid",
                         placeItems: "center",
                         flexShrink: 0,
                       }}
                     >
-                      <Network size={14} style={{ color: "#fff" }} />
+                      <Network size={14} style={{ color: "var(--nf-text-primary)" }} />
                     </span>
                     {/* Content */}
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -903,7 +855,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                           style={{
                             fontSize: 14,
                             fontWeight: 500,
-                            color: "#fff",
+                            color: "var(--nf-text-primary)",
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -928,7 +880,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                       <div
                         style={{
                           fontSize: 12,
-                          color: index === activeSessionIdx ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.35)",
+                          color: index === activeSessionIdx ? "var(--nf-text-secondary)" : "var(--nf-text-placeholder)",
                           marginTop: 2,
                         }}
                       >
@@ -937,7 +889,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                     </div>
                     {/* Enter icon for active */}
                     {index === activeSessionIdx && (
-                      <CornerDownLeft size={14} style={{ color: "rgba(255,255,255,0.5)", flexShrink: 0 }} />
+                      <CornerDownLeft size={14} style={{ color: "var(--nf-text-label)", flexShrink: 0 }} />
                     )}
                   </button>
                 ))}
@@ -951,20 +903,20 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 gap: 16,
                 padding: "0 16px",
                 height: 40,
-                borderTop: "1px solid rgba(255,255,255,0.08)",
-                background: "#161616",
+                borderTop: "1px solid var(--nf-border-inner)",
+                background: "var(--nf-bg-node-inner)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <kbd
                   style={{
-                    background: "#2a2a2a",
-                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "var(--nf-bg-muted)",
+                    border: "1px solid var(--nf-border-inner)",
                     borderRadius: 4,
                     padding: "2px 6px",
                     fontSize: 11,
                     fontWeight: 500,
-                    color: "#fff",
+                    color: "var(--nf-text-primary)",
                     fontFamily: "inherit",
                   }}
                 >
@@ -972,53 +924,53 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 </kbd>
                 <kbd
                   style={{
-                    background: "#2a2a2a",
-                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "var(--nf-bg-muted)",
+                    border: "1px solid var(--nf-border-inner)",
                     borderRadius: 4,
                     padding: "2px 6px",
                     fontSize: 11,
                     fontWeight: 500,
-                    color: "#fff",
+                    color: "var(--nf-text-primary)",
                     fontFamily: "inherit",
                   }}
                 >
                   ↓
                 </kbd>
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Navigate</span>
+                <span style={{ fontSize: 12, color: "var(--nf-text-placeholder)" }}>Navigate</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <kbd
                   style={{
-                    background: "#2a2a2a",
-                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "var(--nf-bg-muted)",
+                    border: "1px solid var(--nf-border-inner)",
                     borderRadius: 4,
                     padding: "2px 6px",
                     fontSize: 11,
                     fontWeight: 500,
-                    color: "#fff",
+                    color: "var(--nf-text-primary)",
                     fontFamily: "inherit",
                   }}
                 >
                   Enter
                 </kbd>
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Select</span>
+                <span style={{ fontSize: 12, color: "var(--nf-text-placeholder)" }}>Select</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
                 <kbd
                   style={{
-                    background: "#2a2a2a",
-                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "var(--nf-bg-muted)",
+                    border: "1px solid var(--nf-border-inner)",
                     borderRadius: 4,
                     padding: "2px 6px",
                     fontSize: 11,
                     fontWeight: 500,
-                    color: "#fff",
+                    color: "var(--nf-text-primary)",
                     fontFamily: "inherit",
                   }}
                 >
                   Esc
                 </kbd>
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Close</span>
+                <span style={{ fontSize: 12, color: "var(--nf-text-placeholder)" }}>Close</span>
               </div>
             </div>
           </div>
@@ -1041,8 +993,8 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
         >
           <div
             style={{
-              background: "#1c1c1c",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "var(--nf-bg-node)",
+              border: "1px solid var(--nf-border-inner)",
               borderRadius: 16,
               padding: 24,
               width: 420,
@@ -1055,7 +1007,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 margin: 0,
                 fontSize: 16,
                 fontWeight: 600,
-                color: "#fff",
+                color: "var(--nf-text-primary)",
               }}
             >
               Delete session?
@@ -1064,7 +1016,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
               style={{
                 margin: "8px 0 24px",
                 fontSize: 13,
-                color: "rgba(255,255,255,0.45)",
+                color: "var(--nf-text-muted)",
                 lineHeight: 1.5,
               }}
             >
@@ -1084,9 +1036,9 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 style={{
                   height: 36,
                   borderRadius: 9999,
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  border: "1px solid var(--nf-border-inner)",
                   background: "transparent",
-                  color: "#fff",
+                  color: "var(--nf-text-primary)",
                   fontSize: 13,
                   padding: "0 16px",
                   cursor: "pointer",
@@ -1110,8 +1062,8 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                   height: 36,
                   borderRadius: 9999,
                   border: "none",
-                  background: "#fff",
-                  color: "#000",
+                  background: "var(--nf-text-primary)",
+                  color: "var(--nf-bg-canvas-grid)",
                   fontSize: 13,
                   fontWeight: 500,
                   padding: "0 16px",
@@ -1137,9 +1089,9 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 width: "100%",
                 height: 36,
                 borderRadius: 9,
-                border: "1px solid #262626",
+                border: "1px solid var(--nf-border-inner)",
                 background: "transparent",
-                color: "#e5e5e5",
+                color: "var(--nf-text-secondary)",
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: "pointer",
@@ -1192,7 +1144,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
             border: "none",
             cursor: "pointer",
             borderRadius: 9,
-            color: "#e4e4e7",
+            color: "var(--nf-text-sidebar)",
           }}
         >
           <span className="nf-sidebar__avatar">{initials}</span>
@@ -1203,7 +1155,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                   style={{
                     fontSize: 13,
                     fontWeight: 500,
-                    color: "#e4e4e7",
+                    color: "var(--nf-text-sidebar)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -1215,14 +1167,14 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#737373",
+                    color: "var(--nf-text-label)",
                     lineHeight: "15px",
                   }}
                 >
                   Free
                 </div>
               </div>
-              <ChevronRight size={14} style={{ color: "#737373", flexShrink: 0 }} />
+              <ChevronRight size={14} style={{ color: "var(--nf-text-label)", flexShrink: 0 }} />
             </>
           )}
         </button>
@@ -1246,14 +1198,15 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
             if (!wf) return null;
             return (
               <div
+                onMouseDown={(e) => e.stopPropagation()}
                 style={{
                   position: "fixed",
                   left: contextMenuPosition.x,
                   top: contextMenuPosition.y,
                   zIndex: 9999,
                   width: 176,
-                  background: "#1e1e1e",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "var(--nf-bg-node-inner)",
+                  border: "1px solid var(--nf-border-inner)",
                   borderRadius: 12,
                   boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
                   overflow: "hidden",
@@ -1263,7 +1216,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    router.push(`/nodes/${wf.id}`);
+                    router.push(`/dashboard/node-editor/${wf.id}`);
                     setContextMenuSession(null);
                     setContextMenuPosition(null);
                   }}
@@ -1276,13 +1229,13 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                     background: "transparent",
                     border: "none",
                     cursor: "pointer",
-                    color: "#fff",
+                    color: "var(--nf-text-primary)",
                     fontSize: 13,
                     fontFamily: "inherit",
                   }}
-                  className="hover:!bg-white/5"
+                  className="nf-hover-item"
                 >
-                  <ArrowRight size={14} style={{ color: "rgba(255,255,255,0.5)" }} />
+                  <ArrowRight size={14} style={{ color: "var(--nf-text-label)" }} />
                   Open Session
                 </button>
                 <button
@@ -1326,9 +1279,9 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
               top: tooltipInfo.rect.top + tooltipInfo.rect.height / 2,
               transform: "translateY(-50%)",
               zIndex: 9999,
-              background: "#1e1e1e",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "#f4f4f5",
+              background: "var(--nf-bg-node-inner)",
+              border: "1px solid var(--nf-border-inner)",
+              color: "var(--nf-text-sidebar)",
               fontSize: 12,
               fontWeight: 500,
               padding: "5px 10px",
@@ -1350,7 +1303,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 height: 0,
                 borderTop: "5px solid transparent",
                 borderBottom: "5px solid transparent",
-                borderRight: "5px solid #1e1e1e",
+                borderRight: "5px solid var(--nf-bg-node-inner)",
               }}
             />
             {tooltipInfo.label}
@@ -1369,8 +1322,8 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
               left: userPanelPosition.left,
               bottom: userPanelPosition.bottom,
               width: 220,
-              background: "#111111",
-              border: "1px solid #2a2a2a",
+              background: "var(--nf-bg-canvas-grid)",
+              border: "1px solid var(--nf-border-inner)",
               borderRadius: 12,
               boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
               zIndex: 90,
@@ -1383,7 +1336,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 style={{
                   fontSize: 10,
                   fontWeight: 600,
-                  color: "#555",
+                  color: "var(--nf-text-label)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   padding: "4px 8px",
@@ -1403,7 +1356,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                   borderRadius: 8,
                   background: "transparent",
                   border: "none",
-                  color: "#e4e4e7",
+                  color: "var(--nf-text-sidebar)",
                   cursor: "pointer",
                   textAlign: "left",
                   fontSize: 12,
@@ -1414,13 +1367,13 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                     width: 24,
                     height: 24,
                     borderRadius: 6,
-                    background: "#2a2a2a",
+                    background: "var(--nf-bg-muted)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#fff",
+                    color: "var(--nf-text-primary)",
                     flexShrink: 0,
                   }}
                 >
@@ -1428,7 +1381,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                 </div>
                 <div>
                   <p style={{ fontWeight: 500, margin: 0 }}>Default Workspace</p>
-                  <p style={{ fontSize: 10, color: "#737373", margin: 0 }}>Free</p>
+                  <p style={{ fontSize: 10, color: "var(--nf-text-label)", margin: 0 }}>Free</p>
                 </div>
               </button>
               <button
@@ -1442,7 +1395,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                   borderRadius: 8,
                   background: "transparent",
                   border: "none",
-                  color: "#737373",
+                  color: "var(--nf-text-label)",
                   cursor: "pointer",
                   fontSize: 12,
                 }}
@@ -1451,7 +1404,7 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
               </button>
             </div>
 
-            <div style={{ borderTop: "1px solid #222", margin: "4px 8px" }} />
+            <div style={{ borderTop: "1px solid var(--nf-border-inner)", margin: "4px 8px" }} />
 
             <div style={{ padding: "4px" }}>
               {(
@@ -1478,12 +1431,12 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                     gap: 12,
                     padding: "8px 12px",
                     borderRadius: 8,
-                    color: "#a1a1aa",
+                    color: "var(--nf-text-muted)",
                     fontSize: 13,
                     textDecoration: "none",
                   }}
                 >
-                  <Icon size={14} style={{ color: "#555", flexShrink: 0 }} />
+                  <Icon size={14} style={{ color: "var(--nf-text-label)", flexShrink: 0 }} />
                   {label}
                 </Link>
               ))}
@@ -1499,12 +1452,12 @@ export function GlobalSidebar({ initialExpanded = false }: GlobalSidebarProps) {
                   borderRadius: 8,
                   background: "transparent",
                   border: "none",
-                  color: "#a1a1aa",
+                  color: "var(--nf-text-muted)",
                   fontSize: 13,
                   cursor: "pointer",
                 }}
               >
-                <LogOut size={14} style={{ color: "#555", flexShrink: 0 }} />
+                <LogOut size={14} style={{ color: "var(--nf-text-label)", flexShrink: 0 }} />
                 Log out
               </button>
             </div>

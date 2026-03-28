@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -9,13 +9,17 @@ import {
   type Node,
   type NodeTypes,
   type Connection,
+  type EdgeTypes,
   ReactFlow,
+  ReactFlowProvider,
   addEdge,
   useEdgesState,
   useNodesState,
+  useReactFlow,
+  useViewport,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/components/theme/theme-provider'
 import {
   AppWindow,
   ArrowLeft,
@@ -23,7 +27,6 @@ import {
   ChevronDown,
   Download,
   Folders,
-  Grid3X3,
   Hand,
   History,
   Keyboard,
@@ -38,13 +41,25 @@ import {
   Redo2,
   Upload,
   X,
+  Layers,
 } from 'lucide-react'
 import { StudioShell } from './StudioShell'
-import { WORKFLOW_TEMPLATES, getTemplateHref } from './workflowTemplates'
 import { ThemeToggle } from './ThemeToggle'
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal'
 import { NodePickerPopup } from './NodePickerPopup'
 import { RightPanel } from './RightPanel'
+import { PresetsOverlay } from './PresetsOverlay'
+import { AssetsPanel } from './AssetsPanel'
+import { PRESET_WORKFLOWS } from './presetDefinitions'
+import { isConnectionTypeValid } from '@/lib/nodeTypes'
+import { FlowingEdge } from './FlowingEdge'
+
+import { TextNode } from './nodes/TextNode'
+import { UploadImageNode } from './nodes/UploadImageNode'
+import { UploadVideoNode } from './nodes/UploadVideoNode'
+import { LLMNode } from './nodes/LLMNode'
+import { CropImageNode } from './nodes/CropImageNode'
+import { ExtractFrameNode } from './nodes/ExtractFrameNode'
 import { KreaImageNode } from './nodes/KreaImageNode'
 
 type NodeEditorCanvasProps = {
@@ -52,74 +67,385 @@ type NodeEditorCanvasProps = {
 }
 
 const nodeTypes: NodeTypes = {
+  text: TextNode,
+  uploadImage: UploadImageNode,
+  uploadVideo: UploadVideoNode,
+  llm: LLMNode,
+  cropImage: CropImageNode,
+  extractFrame: ExtractFrameNode,
   kreaImage: KreaImageNode,
+}
+
+const edgeTypes: EdgeTypes = {
+  flowing: FlowingEdge,
 }
 
 type CanvasMode = 'select' | 'pan' | 'scissor' | 'connect'
 
-export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
+// Detect if adding newEdge would create a cycle
+function wouldCreateCycle(
+  nodes: Node[],
+  edges: Edge[],
+  newEdge: { source: string; target: string }
+): boolean {
+  const adj = new Map<string, string[]>()
+  for (const n of nodes) adj.set(n.id, [])
+  for (const e of edges) {
+    const list = adj.get(e.source) || []
+    list.push(e.target)
+    adj.set(e.source, list)
+  }
+  const visited = new Set<string>()
+  const queue = [newEdge.target]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    if (current === newEdge.source) return true
+    if (visited.has(current)) continue
+    visited.add(current)
+    for (const neighbor of adj.get(current) || []) queue.push(neighbor)
+  }
+  return false
+}
+
+// ── Inner canvas component (needs useReactFlow, which requires ReactFlowProvider above) ──
+function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
   const router = useRouter()
   const { theme } = useTheme()
   const isDark = theme === 'dark'
+  const { screenToFlowPosition, zoomIn, zoomOut, flowToScreenPosition } = useReactFlow()
+  useViewport() // re-render on pan/zoom so the node toolbar tracks correctly
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
-  const [showPresets, setShowPresets] = useState(true)
-  const [dismissed, setDismissed] = useState(false)
+  // Local undo/redo history
+  const historyRef = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([])
+  const historyIdxRef = useRef(-1)
+  const [historyLen, setHistoryLen] = useState(0)
+
+  const pushHistory = useCallback((ns: Node[], es: Edge[]) => {
+    const next = historyRef.current.slice(0, historyIdxRef.current + 1)
+    next.push({ nodes: ns, edges: es })
+    if (next.length > 50) next.shift()
+    historyRef.current = next
+    historyIdxRef.current = next.length - 1
+    setHistoryLen(next.length)
+  }, [])
+
+  const canUndo = historyIdxRef.current > 0
+  const canRedo = historyIdxRef.current < historyRef.current.length - 1
+
+  const undo = useCallback(() => {
+    if (historyIdxRef.current <= 0) return
+    historyIdxRef.current--
+    const entry = historyRef.current[historyIdxRef.current]
+    setNodes(entry.nodes)
+    setEdges(entry.edges)
+    setHistoryLen(historyRef.current.length)
+  }, [setNodes, setEdges])
+
+  const redo = useCallback(() => {
+    if (historyIdxRef.current >= historyRef.current.length - 1) return
+    historyIdxRef.current++
+    const entry = historyRef.current[historyIdxRef.current]
+    setNodes(entry.nodes)
+    setEdges(entry.edges)
+    setHistoryLen(historyRef.current.length)
+  }, [setNodes, setEdges])
+
   const [flowName, setFlowName] = useState('Untitled')
   const [logoMenuOpen, setLogoMenuOpen] = useState(false)
   const [canvasMode, setCanvasMode] = useState<CanvasMode>('select')
   const [isRunning, setIsRunning] = useState(false)
+  const [presetsOpen, setPresetsOpen] = useState(false)
 
   // Modals / panels
   const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false)
   const [nodePickerOpen, setNodePickerOpen] = useState(false)
   const [nodePickerPos, setNodePickerPos] = useState({ x: 400, y: 300 })
   const [rightPanelOpen, setRightPanelOpen] = useState(false)
+  const [assetsPanelOpen, setAssetsPanelOpen] = useState(false)
   const [rightDropdownOpen, setRightDropdownOpen] = useState(false)
+  const [spacePanning, setSpacePanning] = useState(false)
+  const clipboardRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
 
-  const emptyStateVisible = useMemo(
-    () => nodes.length === 0 && showPresets && !dismissed,
-    [nodes.length, showPresets, dismissed],
+  // Enhance nodes with callbacks at render time
+  const enhancedNodes = useMemo(
+    () =>
+      nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          onDelete: () => {
+            setNodes((nds) => nds.filter((n) => n.id !== node.id))
+            setEdges((eds) =>
+              eds.filter((e) => e.source !== node.id && e.target !== node.id)
+            )
+          },
+          onUpdateData: (updates: Record<string, unknown>) =>
+            setNodes((nds) =>
+              nds.map((n) =>
+                n.id === node.id ? { ...n, data: { ...n.data, ...updates } } : n
+              )
+            ),
+        },
+      })),
+    [nodes, setNodes, setEdges]
   )
 
-  const emptyDismissedVisible = useMemo(
-    () => nodes.length === 0 && (!showPresets || dismissed),
-    [nodes.length, showPresets, dismissed],
-  )
+  // Single selected node for context toolbar
+  const selectedNodes = nodes.filter((n) => n.selected)
+  const singleSelectedNode = selectedNodes.length === 1 ? selectedNodes[0] : null
+
+  const nodeToolbarPos = useMemo(() => {
+    if (!singleSelectedNode) return null
+    const nodeW = (singleSelectedNode as Node & { measured?: { width?: number } }).measured?.width ?? 200
+    const screen = flowToScreenPosition({
+      x: singleSelectedNode.position.x + nodeW / 2,
+      y: singleSelectedNode.position.y,
+    })
+    return { x: screen.x, y: screen.y - 52 }
+  }, [singleSelectedNode, flowToScreenPosition])
 
   const handleConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) => addEdge(connection, eds))
+      if (!connection.source || !connection.target) return
+
+      const sourceNode = nodes.find((n) => n.id === connection.source)
+      if (
+        sourceNode &&
+        connection.targetHandle &&
+        !isConnectionTypeValid(sourceNode.type || '', connection.targetHandle)
+      ) {
+        return
+      }
+
+      if (
+        wouldCreateCycle(nodes, edges, {
+          source: connection.source,
+          target: connection.target,
+        })
+      ) {
+        return
+      }
+
+      const newEdge = {
+        ...connection,
+        type: 'flowing',
+        data: { sourceType: sourceNode?.type || 'uploadImage' },
+      }
+      setEdges((eds) => {
+        const updated = addEdge(newEdge, eds)
+        pushHistory(nodes, updated)
+        return updated
+      })
     },
-    [setEdges],
+    [nodes, edges, setEdges, pushHistory]
   )
 
-  const addKreaNode = useCallback(
+  const addNodeToCanvas = useCallback(
     (type: string) => {
-      const id = `node-${Date.now()}`
+      const id = `${type}-${Date.now()}`
+      const position = screenToFlowPosition({
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+      })
       const newNode: Node = {
         id,
-        type: 'kreaImage',
-        position: { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 },
-        data: {
-          label: type,
-          modelName: 'Krea 1',
-          credits: '6',
-          prompt: '',
+        type,
+        position,
+        data: { label: type },
+      }
+      setNodes((nds) => {
+        const updated = [...nds, newNode]
+        pushHistory(updated, edges)
+        return updated
+      })
+    },
+    [screenToFlowPosition, edges, setNodes, pushHistory]
+  )
+
+  const loadPreset = useCallback(
+    (presetTitle: string) => {
+      const preset = PRESET_WORKFLOWS[presetTitle]
+      if (!preset) return
+      setNodes(preset.nodes)
+      setEdges(preset.edges)
+      pushHistory(preset.nodes, preset.edges)
+      setPresetsOpen(false)
+    },
+    [setNodes, setEdges, pushHistory]
+  )
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      // Handle node type drops from sidebar
+      const nodeType = e.dataTransfer.getData('application/reactflow')
+      if (nodeType) {
+        const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        const id = `${nodeType}-${Date.now()}`
+        const newNode: Node = { id, type: nodeType, position, data: { label: nodeType } }
+        setNodes((nds) => {
+          const updated = [...nds, newNode]
+          pushHistory(updated, edges)
+          return updated
+        })
+        return
+      }
+      // Handle asset drops from the assets panel — create an uploadImage node
+      const assetSrc = e.dataTransfer.getData('application/asset-src')
+      if (assetSrc) {
+        const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        const id = `uploadImage-${Date.now()}`
+        const newNode: Node = {
+          id,
+          type: 'uploadImage',
+          position,
+          data: { label: 'uploadImage', fileUrl: assetSrc },
+        }
+        setNodes((nds) => {
+          const updated = [...nds, newNode]
+          pushHistory(updated, edges)
+          return updated
+        })
+      }
+    },
+    [screenToFlowPosition, edges, setNodes, pushHistory]
+  )
+
+  const saveCanvasDraft = useCallback(() => {
+    try {
+      window.localStorage.setItem(
+        'nextflow:canvas-draft',
+        JSON.stringify({
+          flowName,
+          nodes,
+          edges,
+          savedAt: new Date().toISOString(),
+        })
+      )
+    } catch {
+      // Ignore localStorage failures
+    }
+  }, [flowName, nodes, edges])
+
+  const deselectAllNodes = useCallback(() => {
+    setNodes((nds) =>
+      nds.map((node) => (node.selected ? { ...node, selected: false } : node))
+    )
+  }, [setNodes])
+
+  const selectAllNodes = useCallback(() => {
+    setNodes((nds) =>
+      nds.map((node) => (!node.selected ? { ...node, selected: true } : node))
+    )
+  }, [setNodes])
+
+  const deleteSelectedNodes = useCallback(() => {
+    const selectedIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id))
+    if (selectedIds.size === 0) return
+
+    const updatedNodes = nodes.filter((n) => !selectedIds.has(n.id))
+    const updatedEdges = edges.filter(
+      (e) => !selectedIds.has(e.source) && !selectedIds.has(e.target)
+    )
+
+    setNodes(updatedNodes)
+    setEdges(updatedEdges)
+    pushHistory(updatedNodes, updatedEdges)
+  }, [nodes, edges, setNodes, setEdges, pushHistory])
+
+  const copySelectedNodes = useCallback(() => {
+    const selectedNodes = nodes.filter((n) => n.selected)
+    if (selectedNodes.length === 0) return
+
+    const selectedIds = new Set(selectedNodes.map((n) => n.id))
+    const selectedEdges = edges.filter(
+      (e) => selectedIds.has(e.source) && selectedIds.has(e.target)
+    )
+
+    clipboardRef.current = {
+      nodes: selectedNodes.map((n) => structuredClone(n)),
+      edges: selectedEdges.map((e) => structuredClone(e)),
+    }
+  }, [nodes, edges])
+
+  const pasteCopiedNodes = useCallback(() => {
+    const clipboard = clipboardRef.current
+    if (!clipboard || clipboard.nodes.length === 0) return
+
+    const idMap = new Map<string, string>()
+    const stamp = Date.now()
+
+    const pastedNodes: Node[] = clipboard.nodes.map((node, idx) => {
+      const nextId = `${node.type || 'node'}-${stamp}-${idx}`
+      idMap.set(node.id, nextId)
+      return {
+        ...structuredClone(node),
+        id: nextId,
+        selected: true,
+        position: {
+          x: node.position.x + 40,
+          y: node.position.y + 40,
         },
       }
-      setNodes((nds) => [...nds, newNode])
-      setShowPresets(false)
-      setDismissed(true)
-    },
-    [setNodes],
-  )
+    })
+
+    const pastedEdges: Edge[] = clipboard.edges
+      .filter((edge) => idMap.has(edge.source) && idMap.has(edge.target))
+      .map((edge, idx) => ({
+        ...structuredClone(edge),
+        id: `edge-${stamp}-${idx}`,
+        source: idMap.get(edge.source)!,
+        target: idMap.get(edge.target)!,
+        selected: false,
+      }))
+
+    const updatedNodes = [
+      ...nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+      ...pastedNodes,
+    ]
+    const updatedEdges = [...edges, ...pastedEdges]
+
+    setNodes(updatedNodes)
+    setEdges(updatedEdges)
+    pushHistory(updatedNodes, updatedEdges)
+  }, [nodes, edges, setNodes, setEdges, pushHistory])
+
+  const duplicateSelectedNodes = useCallback(() => {
+    copySelectedNodes()
+    pasteCopiedNodes()
+  }, [copySelectedNodes, pasteCopiedNodes])
+
+  const groupSelectedNodes = useCallback(() => {
+    const selectedCount = nodes.filter((n) => n.selected).length
+    if (selectedCount < 2) return
+
+    const groupId = `group-${Date.now()}`
+    const updatedNodes = nodes.map((node) =>
+      node.selected
+        ? { ...node, data: { ...node.data, groupId } }
+        : node
+    )
+    setNodes(updatedNodes)
+    pushHistory(updatedNodes, edges)
+  }, [nodes, edges, setNodes, pushHistory])
+
+  const ungroupSelectedNodes = useCallback(() => {
+    const updatedNodes = nodes.map((node) => {
+      if (!node.selected) return node
+      const data = { ...(node.data as Record<string, unknown>) }
+      delete data.groupId
+      return { ...node, data }
+    })
+    setNodes(updatedNodes)
+    pushHistory(updatedNodes, edges)
+  }, [nodes, edges, setNodes, pushHistory])
 
   // Keyboard shortcuts
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
@@ -127,34 +453,170 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
       )
         return
 
-      switch (e.key.toLowerCase()) {
+      const ctrl = e.ctrlKey || e.metaKey
+      const alt = e.altKey
+      const key = e.key.toLowerCase()
+
+      if (e.code === 'Space') {
+        e.preventDefault()
+        setSpacePanning(true)
+        return
+      }
+
+      if (ctrl && key === 's') {
+        e.preventDefault()
+        saveCanvasDraft()
+        return
+      }
+
+      if (ctrl && key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+        return
+      }
+
+      if (ctrl && key === 'y') {
+        e.preventDefault()
+        redo()
+        return
+      }
+
+      if (ctrl && key === 'a') {
+        e.preventDefault()
+        selectAllNodes()
+        return
+      }
+
+      // Ctrl+Alt+A → Assets panel
+      if (ctrl && alt && key === 'a') {
+        e.preventDefault()
+        setAssetsPanelOpen((o) => !o)
+        return
+      }
+
+      // Ctrl+Alt+S → Version History panel
+      if (ctrl && alt && key === 's') {
+        e.preventDefault()
+        setRightPanelOpen((o) => !o)
+        return
+      }
+
+      if (ctrl && key === 'c') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          setRightPanelOpen((open) => !open)
+          return
+        }
+        copySelectedNodes()
+        return
+      }
+
+      if (ctrl && key === 'v') {
+        e.preventDefault()
+        pasteCopiedNodes()
+        return
+      }
+
+      if (ctrl && key === 'd') {
+        e.preventDefault()
+        duplicateSelectedNodes()
+        return
+      }
+
+      if (ctrl && key === 'g') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          ungroupSelectedNodes()
+        } else {
+          groupSelectedNodes()
+        }
+        return
+      }
+
+      if (ctrl && key === 'enter') {
+        e.preventDefault()
+        setIsRunning(true)
+        return
+      }
+
+      switch (key) {
+        case 'i':
+          addNodeToCanvas('uploadImage')
+          break
+        case 'v':
+          addNodeToCanvas('uploadVideo')
+          break
+        case 'l':
+          addNodeToCanvas('llm')
+          break
+        case 'e':
+          addNodeToCanvas('cropImage')
+          break
+        case 'x':
+        case 'y':
+          setCanvasMode('scissor')
+          break
+        case '=':
+        case '+':
+          e.preventDefault()
+          zoomIn({ duration: 120 })
+          break
+        case '-':
+          e.preventDefault()
+          zoomOut({ duration: 120 })
+          break
         case 'n':
+          setNodePickerPos({ x: window.innerWidth / 2 - 120, y: window.innerHeight / 2 - 200 })
           setNodePickerOpen(true)
           break
         case 'escape':
+          deselectAllNodes()
           setNodePickerOpen(false)
           setKeyboardShortcutsOpen(false)
           setRightDropdownOpen(false)
+          setPresetsOpen(false)
+          setAssetsPanelOpen(false)
+          break
+        case 'delete':
+        case 'backspace':
+          deleteSelectedNodes()
           break
       }
+    }
 
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key.toLowerCase()) {
-          case 's':
-            e.preventDefault()
-            break
-          case 'a':
-            e.preventDefault()
-            break
-          case 'enter':
-            e.preventDefault()
-            break
-        }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setSpacePanning(false)
       }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
+
+    const onWindowBlur = () => setSpacePanning(false)
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onWindowBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onWindowBlur)
+    }
+  }, [
+    undo,
+    redo,
+    addNodeToCanvas,
+    copySelectedNodes,
+    pasteCopiedNodes,
+    duplicateSelectedNodes,
+    groupSelectedNodes,
+    ungroupSelectedNodes,
+    deleteSelectedNodes,
+    deselectAllNodes,
+    selectAllNodes,
+    saveCanvasDraft,
+    zoomIn,
+    zoomOut,
+  ])
 
   const toolbarItems = [
     { id: 'add' as const, icon: Plus, label: 'New Node', shortcut: 'N' },
@@ -164,34 +626,40 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
     { id: 'presets' as const, icon: LayoutGrid, label: 'Presets' },
   ]
 
+  void historyLen
+
   return (
-    <StudioShell contentPadding="0" initialSidebarExpanded={false}>
-      <div className="h-screen relative flex dark:bg-[#0a0a0a] bg-[#f5f5f5]">
+    <StudioShell contentPadding="0" initialSidebarExpanded={false} onAddNode={addNodeToCanvas}>
+      <div className="h-screen relative flex" style={{ background: 'var(--nf-bg-canvas)' }}>
         {/* Canvas */}
-        <div className="flex-1 relative">
+        <div
+          className="flex-1 relative"
+          onDrop={onDrop}
+          onDragOver={(e) => e.preventDefault()}
+        >
           <ReactFlow
-            nodes={nodes}
+            nodes={enhancedNodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            deleteKeyCode={['Backspace', 'Delete']}
             fitView
-            panOnDrag={canvasMode === 'pan'}
-            style={{ background: isDark ? '#0a0a0a' : '#f5f5f5' }}
+            panOnDrag={canvasMode === 'pan' || spacePanning}
+            selectionOnDrag={canvasMode === 'select'}
+            style={{ background: 'var(--nf-bg-canvas)' }}
             defaultEdgeOptions={{
-              style: {
-                stroke: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)',
-                strokeWidth: 1.5,
-              },
-              type: 'smoothstep',
+              type: 'flowing',
+              data: { sourceType: 'uploadImage' },
             }}
           >
             <Background
               variant={BackgroundVariant.Dots}
-              color={isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}
+              color={isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.12)'}
               gap={20}
-              size={1}
+              size={1.5}
             />
           </ReactFlow>
 
@@ -342,24 +810,6 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          setRightDropdownOpen(false)
-                        }}
-                        className="w-full flex items-center justify-between px-4 py-2.5
-                                   dark:hover:bg-white/5 hover:bg-black/5"
-                      >
-                        <div className="flex items-center gap-3">
-                          <LayoutGrid className="w-4 h-4 dark:text-white/60 text-gray-500" />
-                          <span className="text-[13px] dark:text-white text-gray-900">
-                            Assets
-                          </span>
-                        </div>
-                        <kbd className="text-[11px] dark:text-white/30 text-gray-400">
-                          Ctrl+Alt+A
-                        </kbd>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
                           setRightPanelOpen(!rightPanelOpen)
                           setRightDropdownOpen(false)
                         }}
@@ -372,132 +822,34 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
                             Version History
                           </span>
                         </div>
-                        <kbd className="text-[11px] dark:text-white/30 text-gray-400">
-                          Ctrl+Alt+S
-                        </kbd>
+                        <span className="text-[10px] dark:text-white/30 text-gray-400 font-mono">
+                          ⌃⌥S
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssetsPanelOpen(!assetsPanelOpen)
+                          setRightDropdownOpen(false)
+                        }}
+                        className="w-full flex items-center justify-between px-4 py-2.5
+                                   dark:hover:bg-white/5 hover:bg-black/5"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Layers className="w-4 h-4 dark:text-white/60 text-gray-500" />
+                          <span className="text-[13px] dark:text-white text-gray-900">
+                            Assets
+                          </span>
+                        </div>
+                        <span className="text-[10px] dark:text-white/30 text-gray-400 font-mono">
+                          ⌃⌥A
+                        </span>
                       </button>
                     </div>
                   </>
                 )}
               </div>
             </div>
-
-            {/* Empty state: presets */}
-            {emptyStateVisible && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div
-                  className="pointer-events-auto flex flex-col items-center gap-4"
-                  style={{ maxWidth: 1200 }}
-                >
-                  {/* Instruction text */}
-                  <div className="flex items-center gap-1.5 text-[13px] dark:text-[#525252] text-gray-400">
-                    <button
-                      type="button"
-                      onClick={() => setNodePickerOpen(true)}
-                      className="px-2.5 py-0.5 rounded-md text-[12px] font-medium
-                                 dark:bg-[#262626] dark:text-white dark:border-white/10
-                                 bg-gray-100 text-gray-900 border-black/10 border
-                                 hover:opacity-80"
-                    >
-                      Add a node
-                    </button>
-                    <span>or drag and drop media files, or select a preset</span>
-                  </div>
-
-                  {/* Preset cards */}
-                  <div className="flex gap-6 flex-wrap justify-center">
-                    {WORKFLOW_TEMPLATES.map((template) => (
-                      <button
-                        key={template.id}
-                        type="button"
-                        onClick={() => router.push(getTemplateHref(template))}
-                        className="flex flex-col gap-3 items-start group"
-                      >
-                        <div
-                          className="w-[212px] h-[141px] rounded-xl overflow-hidden
-                                     dark:bg-[#1c1c1c] bg-gray-100
-                                     dark:border-white/[0.08] border-black/[0.08] border
-                                     flex items-center justify-center
-                                     group-hover:ring-1 group-hover:ring-[#3b82f6]/50
-                                     transition-all shadow-sm relative"
-                        >
-                          {template.id === 'empty-workflow' ? (
-                            <div
-                              className="w-12 h-12 rounded-full dark:bg-white bg-gray-800
-                                         flex items-center justify-center shadow-md"
-                            >
-                              <Plus className="w-6 h-6 dark:text-black text-white" />
-                            </div>
-                          ) : (
-                            <Grid3X3
-                              size={24}
-                              className="dark:text-white/[0.08] text-black/[0.08]"
-                            />
-                          )}
-                          {template.isPro && (
-                            <div
-                              className="absolute top-2 right-2 flex items-center gap-1
-                                         bg-[#3b5bdb] rounded-md px-1.5 py-0.5"
-                            >
-                              <span className="text-[10px] font-semibold text-white">
-                                PRO
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-[15px] font-medium dark:text-white text-gray-900 text-left">
-                            {template.title}
-                          </p>
-                          {template.subtitle && (
-                            <p className="text-[11.5px] dark:text-[#737373] text-gray-500 text-left mt-0.5">
-                              {template.subtitle}
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Dismiss */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDismissed(true)
-                      setShowPresets(false)
-                    }}
-                    className="flex items-center gap-2 h-9 px-4 rounded-full text-[13px]
-                               dark:bg-[#1c1c1c] dark:text-white dark:border-white/10
-                               bg-white text-gray-900 border-black/10 border
-                               hover:opacity-80 shadow-sm"
-                  >
-                    <X className="w-4 h-4" />
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Empty dismissed state */}
-            {emptyDismissedVisible && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="text-center">
-                  <p className="text-[15px] dark:text-[#525252] text-gray-400 font-medium">
-                    Add a node
-                  </p>
-                  <p className="text-[13px] dark:text-[#404040] text-gray-300 mt-1">
-                    Double click, right click, or press{' '}
-                    <kbd
-                      className="px-1.5 py-0.5 rounded-md text-[11px]
-                                 dark:bg-[#2a2a2a] dark:border dark:border-white/15 dark:text-white
-                                 bg-gray-100 border border-black/10 text-gray-900"
-                    >
-                      N
-                    </kbd>
-                  </p>
-                </div>
-              </div>
-            )}
 
             {/* Running state overlay */}
             {isRunning && nodes.length > 0 && (
@@ -512,6 +864,62 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
                   <Pause className="w-3.5 h-3.5" />
                   Stop workflow
                 </button>
+              </div>
+            )}
+
+            {/* Node context toolbar — shown when a single node is selected */}
+            {nodeToolbarPos && (
+              <div
+                className="absolute z-20 pointer-events-auto flex flex-col items-end gap-1"
+                style={{
+                  left: nodeToolbarPos.x,
+                  top: nodeToolbarPos.y,
+                  transform: 'translateX(-50%)',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setIsRunning(true)}
+                  className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[12px] font-medium
+                             bg-[#0080ff] text-white shadow-md hover:bg-[#006edb] transition-colors"
+                >
+                  <Play className="w-3 h-3 fill-white" />
+                  Run workflow
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Run only this node (stub — wire up executor when ready)
+                  }}
+                  className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[12px] font-medium
+                             dark:bg-[#1c1c1c] dark:border dark:border-white/10 dark:text-white
+                             bg-white border border-black/10 text-gray-900
+                             shadow-md hover:opacity-80 transition-opacity"
+                >
+                  <Play className="w-3 h-3 dark:fill-white fill-gray-900" />
+                  Run node
+                </button>
+              </div>
+            )}
+
+            {/* Empty canvas hint */}
+            {nodes.length === 0 && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+                <p className="text-[15px] font-semibold dark:text-white/25 text-gray-400 mb-1">
+                  Add a node
+                </p>
+                <p className="text-[12px] dark:text-white/15 text-gray-400/70 flex items-center gap-1.5">
+                  Double click, right click, or press
+                  <kbd
+                    className="inline-flex items-center justify-center w-5 h-5 rounded
+                               dark:bg-[#2a2a2a] dark:border dark:border-white/10
+                               bg-white border border-black/10
+                               text-[10px] font-semibold dark:text-white/60 text-gray-600
+                               shadow-sm"
+                  >
+                    N
+                  </kbd>
+                </p>
               </div>
             )}
 
@@ -537,7 +945,7 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
                             setNodePickerPos({ x: window.innerWidth / 2 - 120, y: window.innerHeight / 2 - 200 })
                             setNodePickerOpen(true)
                           } else if (item.id === 'presets') {
-                            setShowPresets(true)
+                            setPresetsOpen(true)
                           } else {
                             setCanvasMode(item.id as CanvasMode)
                           }
@@ -579,11 +987,13 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
               </div>
             </div>
 
-            {/* Bottom left: Undo / Redo / Keyboard shortcuts */}
+            {/* Bottom left: Undo / Redo / Keyboard shortcuts (icon-only) */}
             <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 pointer-events-auto">
               <button
                 type="button"
-                title="Undo"
+                title="Undo (Ctrl+Z)"
+                onClick={undo}
+                disabled={!canUndo}
                 className="w-9 h-9 flex items-center justify-center rounded-[10px] shadow-sm
                            dark:bg-[#1c1c1c] dark:border dark:border-white/10
                            bg-white border border-black/10
@@ -594,7 +1004,9 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
 
               <button
                 type="button"
-                title="Redo"
+                title="Redo (Ctrl+Y)"
+                onClick={redo}
+                disabled={!canRedo}
                 className="w-9 h-9 flex items-center justify-center rounded-[10px] shadow-sm
                            dark:bg-[#1c1c1c] dark:border dark:border-white/10
                            bg-white border border-black/10
@@ -603,16 +1015,17 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
                 <Redo2 className="w-4 h-4 dark:text-white text-gray-900" />
               </button>
 
+              {/* Keyboard shortcuts — icon-only, matching undo/redo style */}
               <button
                 type="button"
+                title="Keyboard shortcuts"
                 onClick={() => setKeyboardShortcutsOpen(true)}
-                className="flex items-center gap-2 h-9 px-3 rounded-[10px] shadow-sm text-[11.6px]
-                           dark:bg-[#1c1c1c] dark:border dark:border-white/[0.15] dark:text-white
-                           bg-white border border-black/10 text-gray-900
+                className="w-9 h-9 flex items-center justify-center rounded-[10px] shadow-sm
+                           dark:bg-[#1c1c1c] dark:border dark:border-white/10
+                           bg-white border border-black/10
                            hover:opacity-80"
               >
-                <Keyboard className="w-3.5 h-3.5" />
-                <span>Keyboard shortcuts</span>
+                <Keyboard className="w-4 h-4 dark:text-white text-gray-900" />
               </button>
             </div>
 
@@ -624,7 +1037,7 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
                          dark:bg-[#171717] dark:border dark:border-white/10
                          bg-white border border-black/10
                          flex items-center justify-center
-                         ${rightPanelOpen ? 'right-[272px]' : 'right-4'}`}
+                         ${rightPanelOpen || assetsPanelOpen ? 'right-[272px]' : 'right-4'}`}
             >
               <Bot className="w-[30px] h-[30px] dark:text-white text-gray-900" />
             </button>
@@ -635,72 +1048,68 @@ export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
             open={nodePickerOpen}
             position={nodePickerPos}
             onClose={() => setNodePickerOpen(false)}
-            onSelectNode={addKreaNode}
+            onSelectNode={(type) => {
+              addNodeToCanvas(type)
+              setNodePickerOpen(false)
+            }}
           />
+
+          {/* Presets modal */}
+          {presetsOpen && (
+            <PresetsOverlay
+              onDismiss={() => setPresetsOpen(false)}
+              onSelectPreset={(tmpl) => loadPreset(tmpl.title)}
+            />
+          )}
         </div>
 
-        {/* Right panel */}
-        {rightPanelOpen && (
-          <div
-            className="w-64 h-full shrink-0
-                       dark:bg-black bg-white
-                       border-l dark:border-white/[0.08] border-black/[0.08]
-                       overflow-y-auto p-3"
-          >
-            {/* Version history card */}
-            <button
-              type="button"
-              className="w-full rounded-xl p-2
-                         dark:bg-[#262626] bg-gray-100
-                         hover:opacity-80 transition-opacity text-left"
-            >
-              <div
-                className="w-full rounded-lg overflow-hidden
-                           dark:bg-[#1a1a1a] bg-white mb-2 relative"
-                style={{ aspectRatio: '4/3' }}
-              >
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    backgroundImage:
-                      'radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)',
-                    backgroundSize: '16px 16px',
-                  }}
-                />
-                <div
-                  className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded
-                             bg-black/50 backdrop-blur-sm
-                             text-[9.5px] font-medium dark:text-[#d4d4d4] text-gray-300"
-                >
-                  Just now
-                </div>
-                <div
-                  className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded
-                             dark:bg-[#404040] bg-gray-200
-                             text-[7.9px] font-semibold uppercase tracking-wide
-                             dark:text-[#d4d4d4] text-gray-600"
-                >
-                  Current
-                </div>
-                <div
-                  className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded
-                             bg-black/50 backdrop-blur-sm
-                             text-[9.5px] font-medium dark:text-[#737373] text-gray-400"
-                >
-                  {nodes.length} node{nodes.length !== 1 ? 's' : ''} ·{' '}
-                  {edges.length} edge{edges.length !== 1 ? 's' : ''}
-                </div>
-              </div>
-            </button>
-          </div>
-        )}
-      </div>
+        {/* Right panel: Version History */}
+        <RightPanel
+          open={rightPanelOpen}
+          nodes={nodes}
+          edges={edges}
+          versionHistory={[]}
+        />
 
-      {/* Keyboard shortcuts modal */}
-      <KeyboardShortcutsModal
-        open={keyboardShortcutsOpen}
-        onClose={() => setKeyboardShortcutsOpen(false)}
-      />
+        {/* Right panel: Assets */}
+        <AssetsPanel
+          open={assetsPanelOpen}
+          onClose={() => setAssetsPanelOpen(false)}
+          onDropAsset={(src, type) => {
+            const position = screenToFlowPosition({
+              x: window.innerWidth / 2,
+              y: window.innerHeight / 2,
+            })
+            const id = `uploadImage-${Date.now()}`
+            const newNode: Node = {
+              id,
+              type: 'uploadImage',
+              position,
+              data: { label: 'uploadImage', fileUrl: src },
+            }
+            setNodes((nds) => {
+              const updated = [...nds, newNode]
+              pushHistory(updated, edges)
+              return updated
+            })
+          }}
+        />
+
+        {/* Keyboard shortcuts modal */}
+        <KeyboardShortcutsModal
+          open={keyboardShortcutsOpen}
+          onClose={() => setKeyboardShortcutsOpen(false)}
+        />
+      </div>
     </StudioShell>
+  )
+}
+
+// Outer wrapper provides ReactFlowProvider so useReactFlow() works inside
+export function NodeEditorCanvas({ flowId }: NodeEditorCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <NodeEditorCanvasInner flowId={flowId} />
+    </ReactFlowProvider>
   )
 }

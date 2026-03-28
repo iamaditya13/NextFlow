@@ -11,13 +11,14 @@ export const PricingToggle = ({
     <div className="flex justify-center w-full mt-12 md:mt-16">
       <div
         role="tablist"
-        className="bg-neutral-100 flex h-[52px] items-center rounded-[26px] p-1.5"
+        className="bg-neutral-100 flex h-[52px] items-center rounded-[26px] p-1.5 relative z-10 pointer-events-auto"
       >
         <button
           type="button"
           onClick={() => setIsYearly(false)}
           role="tab"
           aria-selected={!isYearly}
+          aria-pressed={!isYearly}
           className={`h-10 w-[110px] text-sm font-semibold transition-all duration-200 cursor-pointer rounded-full ${
             !isYearly 
               ? "text-neutral-900 bg-white shadow-sm" 
@@ -31,6 +32,7 @@ export const PricingToggle = ({
           onClick={() => setIsYearly(true)}
           role="tab"
           aria-selected={isYearly}
+          aria-pressed={isYearly}
           className={`h-10 w-[174px] text-sm font-semibold transition-all duration-200 cursor-pointer rounded-full ${
             isYearly 
               ? "text-neutral-900 bg-white shadow-sm" 
