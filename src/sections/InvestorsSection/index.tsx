@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DesktopInvestors } from "@/sections/InvestorsSection/components/DesktopInvestors";
 import { MobileInvestorsMarquee } from "@/sections/InvestorsSection/components/MobileInvestorsMarquee";
 
@@ -15,12 +16,12 @@ export const InvestorsSection = () => {
         <MobileInvestorsMarquee />
       </div>
       <div className="items-center box-border gap-x-2.5 flex justify-center gap-y-2.5 mt-16 md:mt-20">
-        <a
+        <Link
           href="/sign-up"
           className="relative text-[13px] items-center bg-white box-border flex justify-center leading-[13px] overflow-hidden px-5 py-3 rounded-lg"
         >
           Sign up for free
-        </a>
+        </Link>
         <a
           href="#"
           className="relative text-white text-[13px] items-center bg-neutral-800 box-border flex justify-center leading-[13px] overflow-hidden px-5 py-3 rounded-lg"

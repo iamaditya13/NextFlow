@@ -11,6 +11,8 @@ import { ClientsSection } from "@/sections/ClientsSection";
 import { UseCasesSection } from "@/sections/UseCasesSection";
 import { PricingSection } from "@/sections/PricingSection";
 
+type CarouselMode = "mobile" | "desktop";
+
 const cards: GalleryCardProps[] = [
   {
     mediaType: "image" as const,
@@ -71,6 +73,13 @@ export const GallerySection = () => {
   const mobileTrackRef = useRef<HTMLDivElement>(null);
   const desktopViewportRef = useRef<HTMLDivElement>(null);
   const desktopTrackRef = useRef<HTMLDivElement>(null);
+  const dragStateRef = useRef<{
+    mode: CarouselMode;
+    pointerId: number;
+    startX: number;
+    offsetX: number;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
   const MOBILE_CARD_WIDTH = 288;
   const MOBILE_GAP = 16;
   const MOBILE_STEP = MOBILE_CARD_WIDTH + MOBILE_GAP;
@@ -78,6 +87,14 @@ export const GallerySection = () => {
   const [mobileIndex, setMobileIndex] = useState(0);
   const [desktopIndex, setDesktopIndex] = useState(0);
   const [desktopVisibleCards, setDesktopVisibleCards] = useState(1);
+  const [mobileDragOffset, setMobileDragOffset] = useState(0);
+  const [desktopDragOffset, setDesktopDragOffset] = useState(0);
+  const [mobileDragging, setMobileDragging] = useState(false);
+  const [desktopDragging, setDesktopDragging] = useState(false);
+  const maxMobileIndex = Math.max(0, cards.length - 1);
+  const maxDesktopIndex = Math.max(0, cards.length - desktopVisibleCards);
+  const safeMobileIndex = Math.min(mobileIndex, maxMobileIndex);
+  const safeDesktopIndex = Math.min(desktopIndex, maxDesktopIndex);
 
   useEffect(() => {
     const updateSteps = () => {
@@ -114,12 +131,104 @@ export const GallerySection = () => {
     return () => window.removeEventListener("resize", updateSteps);
   }, []);
 
-  useEffect(() => {
-    const maxMobile = Math.max(0, cards.length - 1);
-    const maxDesktop = Math.max(0, cards.length - desktopVisibleCards);
-    setMobileIndex((prev) => Math.min(prev, maxMobile));
-    setDesktopIndex((prev) => Math.min(prev, maxDesktop));
-  }, [desktopVisibleCards]);
+  const setDragOffsetForMode = (mode: CarouselMode, value: number) => {
+    if (mode === "desktop") {
+      setDesktopDragOffset(value);
+      return;
+    }
+    setMobileDragOffset(value);
+  };
+
+  const setDraggingForMode = (mode: CarouselMode, value: boolean) => {
+    if (mode === "desktop") {
+      setDesktopDragging(value);
+      return;
+    }
+    setMobileDragging(value);
+  };
+
+  const applyEdgeResistance = (mode: CarouselMode, offset: number) => {
+    const index = mode === "desktop" ? safeDesktopIndex : safeMobileIndex;
+    const maxIndex = mode === "desktop" ? maxDesktopIndex : maxMobileIndex;
+
+    if ((index === 0 && offset > 0) || (index === maxIndex && offset < 0)) {
+      return offset * 0.35;
+    }
+
+    return offset;
+  };
+
+  const finishDrag = (
+    event: React.PointerEvent<HTMLDivElement>,
+    forceReset = false,
+  ) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    const step = dragState.mode === "desktop" ? desktopStep : MOBILE_STEP;
+    const threshold = Math.min(72, step * 0.24);
+
+    if (!forceReset) {
+      if (dragState.offsetX <= -threshold) {
+        if (dragState.mode === "desktop") {
+          setDesktopIndex((prev) => Math.min(prev + 1, maxDesktopIndex));
+        } else {
+          setMobileIndex((prev) => Math.min(prev + 1, maxMobileIndex));
+        }
+      } else if (dragState.offsetX >= threshold) {
+        if (dragState.mode === "desktop") {
+          setDesktopIndex((prev) => Math.max(prev - 1, 0));
+        } else {
+          setMobileIndex((prev) => Math.max(prev - 1, 0));
+        }
+      }
+    }
+
+    setDragOffsetForMode(dragState.mode, 0);
+    setDraggingForMode(dragState.mode, false);
+    dragStateRef.current = null;
+  };
+
+  const handlePointerDown =
+    (mode: CarouselMode) => (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+
+      suppressClickRef.current = false;
+      dragStateRef.current = {
+        mode,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        offsetX: 0,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setDraggingForMode(mode, true);
+      setDragOffsetForMode(mode, 0);
+    };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    const rawOffset = event.clientX - dragState.startX;
+    const offset = applyEdgeResistance(dragState.mode, rawOffset);
+    dragState.offsetX = offset;
+    setDragOffsetForMode(dragState.mode, offset);
+
+    if (Math.abs(rawOffset) > 6) {
+      suppressClickRef.current = true;
+    }
+  };
+
+  const handleClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!suppressClickRef.current) return;
+    suppressClickRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   const moveCards = (direction: "left" | "right") => {
     const isDesktop =
@@ -128,15 +237,15 @@ export const GallerySection = () => {
     const delta = direction === "left" ? -1 : 1;
 
     if (isDesktop) {
-      const maxDesktop = Math.max(0, cards.length - desktopVisibleCards);
       setDesktopIndex((prev) =>
-        Math.min(Math.max(prev + delta, 0), maxDesktop),
+        Math.min(Math.max(prev + delta, 0), maxDesktopIndex),
       );
       return;
     }
 
-    const maxMobile = Math.max(0, cards.length - 1);
-    setMobileIndex((prev) => Math.min(Math.max(prev + delta, 0), maxMobile));
+    setMobileIndex((prev) =>
+      Math.min(Math.max(prev + delta, 0), maxMobileIndex),
+    );
   };
 
   return (
@@ -147,13 +256,20 @@ export const GallerySection = () => {
           <div className="box-border">
             <div
               ref={mobileViewportRef}
-              className="md:hidden overflow-hidden px-5"
+              className="md:hidden overflow-hidden px-5 cursor-grab active:cursor-grabbing"
+              style={{ touchAction: "pan-y" }}
+              onPointerDown={handlePointerDown("mobile")}
+              onPointerMove={handlePointerMove}
+              onPointerUp={finishDrag}
+              onPointerCancel={(event) => finishDrag(event, true)}
+              onLostPointerCapture={(event) => finishDrag(event, true)}
+              onClickCapture={handleClickCapture}
             >
               <div
                 ref={mobileTrackRef}
-                className="flex gap-4 transition-transform duration-500 ease-out touch-none"
+                className={`flex gap-4 select-none ${mobileDragging ? "transition-none" : "transition-transform duration-500 ease-out"}`}
                 style={{
-                  transform: `translate3d(-${mobileIndex * MOBILE_STEP}px, 0, 0)`,
+                  transform: `translate3d(${-(safeMobileIndex * MOBILE_STEP) + mobileDragOffset}px, 0, 0)`,
                 }}
               >
                 {cards.map((card, i) => (
@@ -176,12 +292,22 @@ export const GallerySection = () => {
             </div>
 
             <div className="hidden md:block">
-              <div ref={desktopViewportRef} className="overflow-hidden px-16">
+              <div
+                ref={desktopViewportRef}
+                className="overflow-hidden px-16 cursor-grab active:cursor-grabbing"
+                style={{ touchAction: "pan-y" }}
+                onPointerDown={handlePointerDown("desktop")}
+                onPointerMove={handlePointerMove}
+                onPointerUp={finishDrag}
+                onPointerCancel={(event) => finishDrag(event, true)}
+                onLostPointerCapture={(event) => finishDrag(event, true)}
+                onClickCapture={handleClickCapture}
+              >
                 <div
                   ref={desktopTrackRef}
-                  className="flex gap-10 transition-transform duration-500 ease-out touch-none"
+                  className={`flex gap-10 select-none ${desktopDragging ? "transition-none" : "transition-transform duration-500 ease-out"}`}
                   style={{
-                    transform: `translate3d(-${desktopIndex * desktopStep}px, 0, 0)`,
+                    transform: `translate3d(${-(safeDesktopIndex * desktopStep) + desktopDragOffset}px, 0, 0)`,
                   }}
                 >
                   {cards.map((card, i) => (
