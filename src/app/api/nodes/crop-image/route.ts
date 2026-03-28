@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
-import { tasks, runs } from '@trigger.dev/sdk/v3'
 import { z } from 'zod'
 import { authenticateUser, success, error, zodError } from '@/lib/apiHelpers'
+import { triggerTaskAndPoll } from '@/lib/triggerTaskRunner'
 
 const schema = z.object({
   imageUrl: z.string().url(),
@@ -10,15 +10,6 @@ const schema = z.object({
   widthPercent: z.number().min(1).max(100).default(100),
   heightPercent: z.number().min(1).max(100).default(100),
 })
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
-    ),
-  ])
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,27 +24,21 @@ export async function POST(req: NextRequest) {
       return zodError(e)
     }
 
-    const handle = await tasks.trigger('crop-image', {
-      imageUrl: parsed.imageUrl,
-      xPercent: parsed.xPercent,
-      yPercent: parsed.yPercent,
-      widthPercent: parsed.widthPercent,
-      heightPercent: parsed.heightPercent,
-      runId: '__standalone__',
-      nodeId: '__standalone__',
-    })
-
-    const result = await withTimeout(
-      runs.poll(handle.id, { pollIntervalMs: 300 }),
-      90_000,
-      'Crop image task'
+    const { output } = await triggerTaskAndPoll(
+      'crop-image',
+      {
+        imageUrl: parsed.imageUrl,
+        xPercent: parsed.xPercent,
+        yPercent: parsed.yPercent,
+        widthPercent: parsed.widthPercent,
+        heightPercent: parsed.heightPercent,
+        runId: '__standalone__',
+        nodeId: '__standalone__',
+      },
+      { label: 'Crop image task', pollIntervalMs: 300, timeoutMs: 90_000 }
     )
 
-    if (!result.output) {
-      return error('Crop image task produced no output', 500)
-    }
-
-    const outputUrl = (result.output as { url?: string }).url
+    const outputUrl = (output as { url?: string }).url
     if (!outputUrl) {
       return error('Crop image task returned no URL', 500)
     }

@@ -1,21 +1,12 @@
 import { NextRequest } from 'next/server'
-import { tasks, runs } from '@trigger.dev/sdk/v3'
 import { z } from 'zod'
 import { authenticateUser, success, error, zodError } from '@/lib/apiHelpers'
+import { triggerTaskAndPoll } from '@/lib/triggerTaskRunner'
 
 const schema = z.object({
   videoUrl: z.string().url(),
   timestamp: z.string().default('50%'),
 })
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
-    ),
-  ])
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,24 +21,18 @@ export async function POST(req: NextRequest) {
       return zodError(e)
     }
 
-    const handle = await tasks.trigger('extract-frame', {
-      videoUrl: parsed.videoUrl,
-      timestamp: parsed.timestamp,
-      runId: '__standalone__',
-      nodeId: '__standalone__',
-    })
-
-    const result = await withTimeout(
-      runs.poll(handle.id, { pollIntervalMs: 300 }),
-      90_000,
-      'Extract frame task'
+    const { output } = await triggerTaskAndPoll(
+      'extract-frame',
+      {
+        videoUrl: parsed.videoUrl,
+        timestamp: parsed.timestamp,
+        runId: '__standalone__',
+        nodeId: '__standalone__',
+      },
+      { label: 'Extract frame task', pollIntervalMs: 300, timeoutMs: 90_000 }
     )
 
-    if (!result.output) {
-      return error('Extract frame task produced no output', 500)
-    }
-
-    const outputUrl = (result.output as { url?: string }).url
+    const outputUrl = (output as { url?: string }).url
     if (!outputUrl) {
       return error('Extract frame task returned no URL', 500)
     }

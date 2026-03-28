@@ -1,5 +1,5 @@
-import { tasks } from '@trigger.dev/sdk/v3'
 import { prisma } from '@/lib/prisma'
+import { triggerTaskAndPoll } from '@/lib/triggerTaskRunner'
 
 interface WorkflowNode {
   id: string
@@ -280,29 +280,29 @@ async function executeNode(
         throw new Error('LLM node: no user message provided')
       }
 
-      const result = await tasks.triggerAndWait('llm-execution', {
-        model: (node.data.model as string) || 'gemini-1.5-flash',
-        systemPrompt,
-        userMessage,
-        imageUrls,
-        runId,
-        nodeId: node.id,
-      })
+      const { output } = await triggerTaskAndPoll(
+        'llm-execution',
+        {
+          model: (node.data.model as string) || 'gemini-1.5-flash',
+          systemPrompt,
+          userMessage,
+          imageUrls,
+          runId,
+          nodeId: node.id,
+        },
+        {
+          label: `LLM task (${node.id})`,
+          pollIntervalMs: 500,
+          timeoutMs: 120_000,
+        }
+      )
 
-      if (!result.ok) {
-        const errorMessage =
-          typeof result.error === 'string'
-            ? result.error
-            : result.error &&
-                typeof result.error === 'object' &&
-                'message' in result.error
-              ? String((result.error as { message?: unknown }).message ?? 'LLM task failed')
-              : 'LLM task failed'
-
-        throw new Error(errorMessage)
+      const text = (output as { text?: unknown }).text
+      if (typeof text !== 'string') {
+        throw new Error('LLM task returned no text')
       }
 
-      return result.output as Record<string, unknown>
+      return { text }
     }
 
     case 'cropImage': {
@@ -318,21 +318,30 @@ async function executeNode(
         throw new Error('Crop node: no image URL provided')
       }
 
-      const result = await tasks.triggerAndWait('crop-image', {
-        imageUrl,
-        xPercent: extractNumber(xInput) ?? (node.data.xPercent as number) ?? 0,
-        yPercent: extractNumber(yInput) ?? (node.data.yPercent as number) ?? 0,
-        widthPercent: extractNumber(wInput) ?? (node.data.widthPercent as number) ?? 100,
-        heightPercent: extractNumber(hInput) ?? (node.data.heightPercent as number) ?? 100,
-        runId,
-        nodeId: node.id,
-      })
+      const { output } = await triggerTaskAndPoll(
+        'crop-image',
+        {
+          imageUrl,
+          xPercent: extractNumber(xInput) ?? (node.data.xPercent as number) ?? 0,
+          yPercent: extractNumber(yInput) ?? (node.data.yPercent as number) ?? 0,
+          widthPercent: extractNumber(wInput) ?? (node.data.widthPercent as number) ?? 100,
+          heightPercent: extractNumber(hInput) ?? (node.data.heightPercent as number) ?? 100,
+          runId,
+          nodeId: node.id,
+        },
+        {
+          label: `Crop image task (${node.id})`,
+          pollIntervalMs: 300,
+          timeoutMs: 120_000,
+        }
+      )
 
-      if (!result.ok) {
-        throw new Error('Crop image task failed')
+      const url = (output as { url?: unknown }).url
+      if (typeof url !== 'string' || url.length === 0) {
+        throw new Error('Crop image task returned no URL')
       }
 
-      return result.output as Record<string, unknown>
+      return { url }
     }
 
     case 'extractFrame': {
@@ -345,18 +354,27 @@ async function executeNode(
         throw new Error('Extract Frame: no video URL provided')
       }
 
-      const result = await tasks.triggerAndWait('extract-frame', {
-        videoUrl,
-        timestamp: extractString(timestampInput) ?? (node.data.timestamp as string) ?? '0',
-        runId,
-        nodeId: node.id,
-      })
+      const { output } = await triggerTaskAndPoll(
+        'extract-frame',
+        {
+          videoUrl,
+          timestamp: extractString(timestampInput) ?? (node.data.timestamp as string) ?? '0',
+          runId,
+          nodeId: node.id,
+        },
+        {
+          label: `Extract frame task (${node.id})`,
+          pollIntervalMs: 300,
+          timeoutMs: 120_000,
+        }
+      )
 
-      if (!result.ok) {
-        throw new Error('Extract frame task failed')
+      const url = (output as { url?: unknown }).url
+      if (typeof url !== 'string' || url.length === 0) {
+        throw new Error('Extract frame task returned no URL')
       }
 
-      return result.output as Record<string, unknown>
+      return { url }
     }
 
     default:
