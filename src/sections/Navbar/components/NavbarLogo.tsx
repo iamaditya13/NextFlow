@@ -1,9 +1,11 @@
+import Link from "next/link";
+
 type NavbarLogoProps = { isDark: boolean };
 
 export const NavbarLogo = ({ isDark }: NavbarLogoProps) => {
   return (
     <div className="w-fit">
-      <a href="/" aria-label="Return to home" className="block">
+      <Link href="/" aria-label="Return to home" className="block">
         <svg
           width="24"
           height="24"
@@ -20,7 +22,7 @@ export const NavbarLogo = ({ isDark }: NavbarLogoProps) => {
           <rect x="9" y="15" width="5" height="5" rx="2.5" />
           <rect x="16" y="11" width="5" height="5" rx="2.5" />
         </svg>
-      </a>
+      </Link>
     </div>
   );
 };

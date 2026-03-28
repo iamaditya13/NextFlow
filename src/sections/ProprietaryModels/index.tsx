@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ModelShowcase } from "@/sections/ProprietaryModels/components/ModelShowcase";
 import { AnimatedWord } from "@/components/AnimatedWord";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
@@ -126,12 +127,12 @@ export const ProprietaryModels = () => {
         </div>
 
         <div className="flex justify-center gap-2.5 mt-16 md:mt-20">
-          <a
+          <Link
             href="/sign-up"
             className="relative text-[13px] items-center bg-white flex justify-center leading-[13px] overflow-hidden px-5 py-3 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors"
           >
             Sign up for free
-          </a>
+          </Link>
           <a
             href="#"
             className="relative text-white text-[13px] items-center bg-neutral-800 flex justify-center leading-[13px] overflow-hidden px-5 py-3 rounded-lg hover:bg-neutral-700 transition-colors"

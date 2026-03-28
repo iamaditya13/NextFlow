@@ -75,7 +75,7 @@ button.nav-features-button {
 }
 
 /* Hero body text / container */
-video.h-full {
+.hero-section video.h-full {
   background-color: #101010;
   width: 1238px;
   height: 734.25px;

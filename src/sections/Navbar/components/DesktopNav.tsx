@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 type DesktopNavProps = {
   featuresOpen: boolean;
@@ -29,17 +30,17 @@ export const DesktopNav = ({
   };
 
   return (
-    <div className="relative box-border hidden min-h-0 min-w-0 md:block md:min-h-[auto] md:min-w-[auto]">
-      <div className="absolute box-border hidden left-2/4 top-2/4 -translate-x-1/2 -translate-y-1/2 md:block">
+    <div className="relative box-border hidden min-h-0 min-w-0 xl:block xl:min-h-[auto] xl:min-w-[auto]">
+      <div className="absolute box-border hidden left-2/4 top-2/4 -translate-x-1/2 -translate-y-1/2 xl:block">
         <nav className="text-[16px] items-center box-border gap-x-0 flex leading-[22.5px] gap-y-0 whitespace-nowrap">
-          <a
+          <Link
             href="/dashboard/node-editor"
             onMouseEnter={() => setFeaturesOpen(false)}
             className={`nav-link block shrink-0 px-4 py-2 h-[36px] rounded-md transition-all duration-150 ${hoverClass}`}
             style={linkStyle}
           >
             App
-          </a>
+          </Link>
 
           <button
             onMouseEnter={() => setFeaturesOpen(true)}
@@ -55,7 +56,7 @@ export const DesktopNav = ({
           </button>
 
           {navLinks.slice(1).map((link) => (
-            <a
+            <Link
               key={link.label}
               href={link.href}
               onMouseEnter={() => setFeaturesOpen(false)}
@@ -63,7 +64,7 @@ export const DesktopNav = ({
               style={linkStyle}
             >
               {link.label}
-            </a>
+            </Link>
           ))}
         </nav>
       </div>

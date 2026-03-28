@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
 
 const useCases = [
@@ -48,55 +47,32 @@ const useCases = [
 ];
 
 export const UseCasesList = () => {
-  const [activeTab, setActiveTab] = useState(0);
-
   return (
     <div className="relative box-border basis-[0%] grow z-0">
-      <ul className="box-border list-none max-h-none overflow-x-visible overflow-y-visible pl-0 md:max-h-[672px] md:overflow-x-auto md:overflow-y-scroll">
-        {useCases.map((item, index) => {
-          const isActive = index === activeTab;
-          return (
-            <li
-              key={item.title}
-              className="box-border mb-3 scroll-m-12"
-            >
-              <div
-                role="button"
-                onClick={() => setActiveTab(index)}
-                className={`box-border gap-x-2.5 flex flex-col gap-y-2.5 text-left w-full p-5 rounded-[14px] transition-colors duration-300 ${
-                  isActive
-                    ? "text-neutral-600 bg-neutral-100"
-                    : "text-neutral-400 bg-transparent hover:bg-neutral-50"
-                }`}
-              >
-                <h3
-                  className={`text-black text-2xl font-semibold box-border leading-8 transition-opacity duration-300 ${
-                    isActive ? "opacity-100" : "opacity-35"
-                  }`}
+      <ul className="box-border list-none max-h-none overflow-x-visible overflow-y-visible pl-0 md:max-h-[672px] md:overflow-x-auto md:overflow-y-scroll nf-hide-scrollbar">
+        {useCases.map((item) => (
+          <li
+            key={item.title}
+            className="box-border mb-3 scroll-m-12"
+          >
+            <div className="group box-border gap-x-2.5 flex flex-col gap-y-2.5 text-left w-full p-5 rounded-[14px] transition-colors duration-300 text-neutral-400 bg-transparent hover:bg-neutral-100 hover:text-neutral-600 focus-within:bg-neutral-100 focus-within:text-neutral-600">
+              <h3 className="text-black text-2xl font-semibold box-border leading-8 opacity-35 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
+                {item.title}
+              </h3>
+              <p className="text-sm font-[450] box-border leading-[19.6px]">
+                {item.desc}
+              </p>
+              <div className="box-border w-fit mt-3 transition-all duration-300 overflow-hidden max-h-0 opacity-0 pointer-events-none group-hover:max-h-12 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:max-h-12 group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
+                <Link
+                  href={item.href}
+                  className="relative text-black text-[13px] items-center bg-white box-border flex justify-center leading-[13px] overflow-hidden px-5 py-3 rounded-lg border border-neutral-200"
                 >
-                  {item.title}
-                </h3>
-                <p className="text-sm font-[450] box-border leading-[19.6px]">
-                  {item.desc}
-                </p>
-                <div
-                  className={`box-border w-fit mt-3 transition-all duration-300 overflow-hidden ${
-                    isActive
-                      ? "max-h-12 opacity-100 pointer-events-auto"
-                      : "max-h-0 opacity-0 pointer-events-none"
-                  }`}
-                >
-                  <Link
-                    href={item.href}
-                    className="relative text-black text-[13px] items-center bg-white box-border flex justify-center leading-[13px] overflow-hidden px-5 py-3 rounded-lg border border-neutral-200"
-                  >
-                    {item.btnText}
-                  </Link>
-                </div>
+                  {item.btnText}
+                </Link>
               </div>
-            </li>
-          );
-        })}
+            </div>
+          </li>
+        ))}
       </ul>
     </div>
   );

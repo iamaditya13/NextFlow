@@ -41,9 +41,9 @@ export const NavbarActions = ({
           Log in
         </Link>
 
-        <div className="items-center box-border flex justify-center md:hidden md:min-h-0 md:min-w-0">
+        <div className="items-center box-border flex justify-center xl:hidden xl:min-h-0 xl:min-w-0">
           <button
-            className={`bg-transparent block text-center p-0 md:min-h-0 md:min-w-0 hover:opacity-70 transition-opacity ${isDark ? "text-white" : "text-black"}`}
+            className={`bg-transparent block text-center p-0 xl:min-h-0 xl:min-w-0 hover:opacity-70 transition-opacity ${isDark ? "text-white" : "text-black"}`}
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
           >
