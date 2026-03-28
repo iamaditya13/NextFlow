@@ -171,7 +171,8 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
   const [rightDropdownOpen, setRightDropdownOpen] = useState(false)
   const [spacePanning, setSpacePanning] = useState(false)
   const clipboardRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
-  const hideHoveredNodeToolbarRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  // Debugged: browser setTimeout returns a numeric timer ID.
+  const hideHoveredNodeToolbarRef = useRef<number | null>(null)
 
   /** Run the full workflow via the client-side DAG executor. */
   const handleRunWorkflow = useCallback(
