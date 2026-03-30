@@ -11,7 +11,10 @@ export default function SignInPage() {
             cardBox: 'shadow-2xl rounded-2xl',
           },
         }}
+        forceRedirectUrl="/dashboard"
         fallbackRedirectUrl="/dashboard"
+        signUpForceRedirectUrl="/dashboard"
+        signUpFallbackRedirectUrl="/dashboard"
       />
     </div>
   )
