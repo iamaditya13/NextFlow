@@ -16,6 +16,11 @@ interface TriggerResult {
   attemptCount: number
 }
 
+interface TriggerDispatchResult {
+  runId: string
+  dispatchAttempt: number
+}
+
 type TriggerRunSnapshot = {
   status?: string
   attemptCount?: number
@@ -119,35 +124,21 @@ async function getRunSnapshot(runId: string): Promise<TriggerRunSnapshot | null>
   }
 }
 
-export async function triggerTaskAndPoll(
+async function dispatchTaskWithRetry(
   taskId: string,
   payload: Record<string, unknown>,
-  options: TriggerTaskOptions
-): Promise<TriggerResult> {
-  const {
-    label,
-    pollIntervalMs = 500,
-    timeoutMs = 90_000,
-    maxTriggerAttempts = 2,
-    retryDelayMs = 1200,
-    requestId,
-  } = options
-
-  assertTriggerEnv()
-
+  options: Required<Pick<TriggerTaskOptions, 'label' | 'maxTriggerAttempts' | 'retryDelayMs'>> &
+    Pick<TriggerTaskOptions, 'requestId'>
+): Promise<TriggerDispatchResult> {
+  const { label, maxTriggerAttempts, retryDelayMs, requestId } = options
   const logPrefix = prefix(label, requestId)
-  console.log(`${logPrefix} dispatch`, {
-    taskId,
-    payloadKeys: Object.keys(payload),
-    timeoutMs,
-    pollIntervalMs,
-    maxTriggerAttempts,
-  })
 
   let handle: { id: string } | null = null
   let lastDispatchError: unknown
+  let dispatchAttempt = 0
 
   for (let attempt = 1; attempt <= maxTriggerAttempts; attempt++) {
+    dispatchAttempt = attempt
     try {
       handle = await tasks.trigger(taskId, payload)
       console.log(`${logPrefix} queued`, { runId: handle.id, dispatchAttempt: attempt })
@@ -175,8 +166,65 @@ export async function triggerTaskAndPoll(
     )
   }
 
+  return { runId: handle.id, dispatchAttempt }
+}
+
+export async function triggerTask(
+  taskId: string,
+  payload: Record<string, unknown>,
+  options: Omit<TriggerTaskOptions, 'pollIntervalMs' | 'timeoutMs'>
+): Promise<TriggerDispatchResult> {
+  const { label, maxTriggerAttempts = 2, retryDelayMs = 1200, requestId } = options
+
+  assertTriggerEnv()
+  const logPrefix = prefix(label, requestId)
+  console.log(`${logPrefix} dispatch`, {
+    taskId,
+    payloadKeys: Object.keys(payload),
+    maxTriggerAttempts,
+  })
+
+  return dispatchTaskWithRetry(taskId, payload, {
+    label,
+    maxTriggerAttempts,
+    retryDelayMs,
+    requestId,
+  })
+}
+
+export async function triggerTaskAndPoll(
+  taskId: string,
+  payload: Record<string, unknown>,
+  options: TriggerTaskOptions
+): Promise<TriggerResult> {
+  const {
+    label,
+    pollIntervalMs = 500,
+    timeoutMs = 90_000,
+    maxTriggerAttempts = 2,
+    retryDelayMs = 1200,
+    requestId,
+  } = options
+
+  assertTriggerEnv()
+
+  const logPrefix = prefix(label, requestId)
+  console.log(`${logPrefix} dispatch`, {
+    taskId,
+    payloadKeys: Object.keys(payload),
+    timeoutMs,
+    pollIntervalMs,
+    maxTriggerAttempts,
+  })
+  const { runId } = await dispatchTaskWithRetry(taskId, payload, {
+    label,
+    maxTriggerAttempts,
+    retryDelayMs,
+    requestId,
+  })
+
   try {
-    const result = await withTimeout(runs.poll(handle.id, { pollIntervalMs }), timeoutMs, label)
+    const result = await withTimeout(runs.poll(runId, { pollIntervalMs }), timeoutMs, label)
     const runResult = result as {
       status: string
       attemptCount?: number
@@ -197,20 +245,20 @@ export async function triggerTaskAndPoll(
     }
 
     console.log(`${logPrefix} completed`, {
-      runId: handle.id,
+      runId,
       status: runResult.status,
       attemptCount: runResult.attemptCount ?? 0,
     })
 
     return {
-      runId: handle.id,
+      runId,
       output: runResult.output as Record<string, unknown>,
       status: runResult.status,
       attemptCount: runResult.attemptCount ?? 0,
     }
   } catch (err: unknown) {
     const message = errorMessage(err)
-    const snapshot = await getRunSnapshot(handle.id)
+    const snapshot = await getRunSnapshot(runId)
     const snapshotSummary = summarizeSnapshot(snapshot)
 
     if (isQueueTimeout(message, label) && snapshot?.isQueued && (snapshot.attemptCount ?? 0) === 0) {
@@ -220,11 +268,11 @@ export async function triggerTaskAndPoll(
     }
 
     console.error(`${logPrefix} failed`, {
-      runId: handle.id,
+      runId,
       error: message,
       snapshot: snapshotSummary,
     })
 
-    throw new Error(`${label} failed (runId: ${handle.id}). ${message}. ${snapshotSummary}`)
+    throw new Error(`${label} failed (runId: ${runId}). ${message}. ${snapshotSummary}`)
   }
 }

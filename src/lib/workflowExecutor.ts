@@ -104,6 +104,16 @@ function getImageUrlsForNode(
 const NODE_FETCH_TIMEOUT_MS = 120_000 // 2 minutes — matches API route maxDuration
 const NODE_EXEC_RETRY_ATTEMPTS = 2
 const NODE_EXEC_RETRY_BASE_DELAY_MS = 1_000
+const NODE_TRIGGER_RUN_POLL_INTERVAL_MS = 1_000
+const TERMINAL_TRIGGER_RUN_FAILURE_STATUSES = new Set([
+  'FAILED',
+  'CANCELED',
+  'CANCELLED',
+  'TIMED_OUT',
+  'SYSTEM_FAILURE',
+  'CRASHED',
+  'INTERRUPTED',
+])
 const RETRYABLE_NODE_ERROR_PATTERNS = [
   'timed out',
   'timeout',
@@ -131,6 +141,21 @@ function isRetryableNodeError(err: unknown): boolean {
   return RETRYABLE_NODE_ERROR_PATTERNS.some((pattern) => message.includes(pattern))
 }
 
+function getRunErrorMessage(runError: unknown): string {
+  if (!runError) return 'Unknown Trigger run error'
+  if (runError instanceof Error) return runError.message
+  if (typeof runError === 'string') return runError
+  if (
+    typeof runError === 'object' &&
+    runError &&
+    'message' in runError &&
+    typeof (runError as { message?: unknown }).message === 'string'
+  ) {
+    return (runError as { message: string }).message
+  }
+  return JSON.stringify(runError)
+}
+
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
@@ -148,6 +173,52 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer)
   }
+}
+
+async function waitForTriggerRunOutput(
+  runId: string,
+  label: string,
+  timeoutMs: number = NODE_FETCH_TIMEOUT_MS
+): Promise<Record<string, unknown>> {
+  const startedAt = Date.now()
+  let lastStatus = ''
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const encodedRunId = encodeURIComponent(runId)
+    const res = await fetchWithTimeout(
+      `/api/trigger-runs/${encodedRunId}`,
+      { method: 'GET' },
+      timeoutMs
+    )
+    const json = await res.json()
+
+    if (!json?.success) {
+      throw new Error(json?.error || `${label} run lookup failed`)
+    }
+
+    const status = String(json.data?.status || 'UNKNOWN')
+    if (status !== lastStatus) {
+      lastStatus = status
+      console.log('[workflowExecutor] trigger run status', { label, runId, status })
+    }
+
+    if (status === 'COMPLETED') {
+      const output = json.data?.output
+      if (!output || typeof output !== 'object') {
+        throw new Error(`${label} completed without output`)
+      }
+      return output as Record<string, unknown>
+    }
+
+    if (TERMINAL_TRIGGER_RUN_FAILURE_STATUSES.has(status)) {
+      const runError = getRunErrorMessage(json.data?.error)
+      throw new Error(`${label} failed (${status}): ${runError}`)
+    }
+
+    await sleep(NODE_TRIGGER_RUN_POLL_INTERVAL_MS)
+  }
+
+  throw new Error(`${label} did not complete within ${timeoutMs / 1000}s`)
 }
 
 // ── Per-node execution ────────────────────────────────────────────────────────
@@ -204,8 +275,19 @@ async function executeNode(
         }),
       })
       const json = await res.json()
-      if (!json.success) throw new Error(json.error || 'Crop image failed')
-      return { url: json.data.output }
+      if (!json.success) throw new Error(json.error || 'Crop image trigger failed')
+
+      const runId = json?.data?.runId
+      if (typeof runId !== 'string' || runId.length === 0) {
+        throw new Error('Crop image trigger did not return runId')
+      }
+
+      const output = await waitForTriggerRunOutput(runId, 'Crop image task')
+      const outputUrl = output.url
+      if (typeof outputUrl !== 'string' || outputUrl.length === 0) {
+        throw new Error('Crop image task returned no URL')
+      }
+      return { url: outputUrl }
     }
 
     // Extract Frame — POST to server route which uses the Trigger.dev extract-frame task
@@ -230,8 +312,19 @@ async function executeNode(
         }),
       })
       const json = await res.json()
-      if (!json.success) throw new Error(json.error || 'Frame extraction failed')
-      return { url: json.data.output }
+      if (!json.success) throw new Error(json.error || 'Extract frame trigger failed')
+
+      const runId = json?.data?.runId
+      if (typeof runId !== 'string' || runId.length === 0) {
+        throw new Error('Extract frame trigger did not return runId')
+      }
+
+      const output = await waitForTriggerRunOutput(runId, 'Extract frame task')
+      const outputUrl = output.url
+      if (typeof outputUrl !== 'string' || outputUrl.length === 0) {
+        throw new Error('Extract frame task returned no URL')
+      }
+      return { url: outputUrl }
     }
 
     // LLM — POST to server route which calls Gemini via Trigger.dev

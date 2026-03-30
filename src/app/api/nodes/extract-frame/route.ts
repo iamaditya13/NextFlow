@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { authenticateUser, success, error, zodError } from '@/lib/apiHelpers'
-import { triggerTaskAndPoll } from '@/lib/triggerTaskRunner'
+import { triggerTask } from '@/lib/triggerTaskRunner'
 
 const httpUrlSchema = z
   .string()
@@ -93,73 +93,26 @@ export async function POST(req: NextRequest) {
       timestamp: parsed.timestamp,
     })
 
-    const localFallbackEnabled = process.env.MEDIA_NODE_LOCAL_FALLBACK === '1'
-
-    let output: Record<string, unknown>
-    let runId: string | undefined
-
-    try {
-      const triggerResult = await triggerTaskAndPoll(
-        'extract-frame',
-        {
-          videoUrl: parsed.videoUrl,
-          timestamp: parsed.timestamp,
-          runId: '__standalone__',
-          nodeId: '__standalone__',
-        },
-        {
-          label: 'Extract frame task',
-          pollIntervalMs: 300,
-          timeoutMs: 90_000,
-          requestId,
-        }
-      )
-
-      output = triggerResult.output
-      runId = triggerResult.runId
-      console.log(`[${routeLabel}] [${requestId}] trigger task completed`, {
-        runId,
-        durationMs: Date.now() - startedAt,
-      })
-    } catch (taskError: unknown) {
-      const taskMessage = getErrorMessage(taskError)
-      const shouldFallback =
-        localFallbackEnabled &&
-        process.env.NODE_ENV !== 'production' &&
-        taskMessage.includes('queued and was never picked up')
-
-      if (!shouldFallback) {
-        throw taskError
-      }
-
-      console.warn(
-        `[${routeLabel}] [${requestId}] Trigger worker unavailable, using local fallback runner`
-      )
-
-      const { runExtractFrame } = await import('@/lib/nodeRunners/extractFrame')
-      const localResult = await runExtractFrame({
+    const { runId } = await triggerTask(
+      'extract-frame',
+      {
         videoUrl: parsed.videoUrl,
         timestamp: parsed.timestamp,
-      })
+        runId: '__standalone__',
+        nodeId: '__standalone__',
+      },
+      {
+        label: 'Extract frame task',
+        requestId,
+      }
+    )
 
-      output = { url: localResult.url, timestamp: localResult.timestamp }
-      console.log(`[${routeLabel}] [${requestId}] local fallback completed`, {
-        durationMs: Date.now() - startedAt,
-      })
-    }
-
-    const outputUrl = (output as { url?: string }).url
-    if (!outputUrl) {
-      return error('Extract frame task returned no URL', 500)
-    }
-
-    console.log(`[${routeLabel}] [${requestId}] success`, {
-      outputUrl: summarizeUrl(outputUrl),
-      runId: runId ?? null,
+    console.log(`[${routeLabel}] [${requestId}] queued`, {
+      runId,
       durationMs: Date.now() - startedAt,
     })
 
-    return success({ output: outputUrl, runId: runId ?? null, requestId })
+    return success({ runId, status: 'QUEUED', requestId }, 202)
   } catch (e: unknown) {
     const message = getErrorMessage(e)
     const status = getStatusFromMessage(message)
