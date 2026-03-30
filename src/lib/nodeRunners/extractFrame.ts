@@ -1,7 +1,5 @@
 import { execFile } from 'child_process'
 import ffmpeg from 'fluent-ffmpeg'
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
-import ffprobeInstaller from '@ffprobe-installer/ffprobe'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -9,13 +7,17 @@ import { uploadToTransloadit } from '@/trigger/utils/uploadToTransloadit'
 
 const DEFAULT_MAX_BUFFER = 10 * 1024 * 1024
 const DEFAULT_COMMAND_TIMEOUT_MS = 90_000
-const FFMPEG_PATH = ffmpegInstaller.path
-const FFPROBE_PATH = ffprobeInstaller.path
 
-ffmpeg.setFfmpegPath(FFMPEG_PATH)
-ffmpeg.setFfprobePath(FFPROBE_PATH)
-console.log('ffmpeg path', ffmpegInstaller.path)
-console.log('ffprobe path', ffprobeInstaller.path)
+function resolveInstallerPath(
+  module: { default?: { path?: string }; path?: string },
+  binaryName: 'ffmpeg' | 'ffprobe'
+): string {
+  const installerPath = module.default?.path ?? module.path
+  if (!installerPath) {
+    throw new Error(`Unable to resolve ${binaryName} binary path from installer package`)
+  }
+  return installerPath
+}
 
 export interface ExtractFrameParams {
   videoUrl: string
@@ -139,21 +141,35 @@ export async function runExtractFrame(
   params: ExtractFrameParams
 ): Promise<{ url: string; timestamp: string }> {
   ensureHttpUrl(params.videoUrl)
+  const ffmpegInstaller = await import('@ffmpeg-installer/ffmpeg')
+  const ffprobeInstaller = await import('@ffprobe-installer/ffprobe')
+  const ffmpegPath = resolveInstallerPath(
+    ffmpegInstaller as { default?: { path?: string }; path?: string },
+    'ffmpeg'
+  )
+  const ffprobePath = resolveInstallerPath(
+    ffprobeInstaller as { default?: { path?: string }; path?: string },
+    'ffprobe'
+  )
+  ffmpeg.setFfmpegPath(ffmpegPath)
+  ffmpeg.setFfprobePath(ffprobePath)
+  console.log('ffmpeg path', ffmpegPath)
+  console.log('ffprobe path', ffprobePath)
   const outputPath = makeOutputPath()
   const startTime = Date.now()
 
   console.log('[nodeRunner:extract-frame] start', {
-    ffmpegPath: FFMPEG_PATH,
-    ffprobePath: FFPROBE_PATH,
+    ffmpegPath,
+    ffprobePath,
     videoUrl: params.videoUrl,
     timestamp: params.timestamp,
     outputPath,
   })
 
   try {
-    const seconds = await resolveTimestampSeconds(params.videoUrl, params.timestamp, FFPROBE_PATH)
+    const seconds = await resolveTimestampSeconds(params.videoUrl, params.timestamp, ffprobePath)
 
-    await runCommand(FFMPEG_PATH, [
+    await runCommand(ffmpegPath, [
       '-hide_banner',
       '-loglevel',
       'error',
