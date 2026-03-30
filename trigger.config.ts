@@ -1,12 +1,7 @@
 import { defineConfig } from '@trigger.dev/sdk/v3'
+import { getTriggerProjectId } from './src/lib/env/getTriggerEnv'
 
-const projectId = process.env.TRIGGER_PROJECT_ID
-
-if (!projectId) {
-  throw new Error(
-    'Missing TRIGGER_PROJECT_ID. Set it in .env.local and in production before starting Trigger.dev workers.'
-  )
-}
+const projectId = getTriggerProjectId({ allowMissing: true }) || '__MISSING_TRIGGER_PROJECT_ID__'
 
 export default defineConfig({
   project: projectId,

@@ -8,8 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "trigger": "set -a && . ./.env.local && set +a && npx trigger.dev@latest deploy --config ./trigger.config.ts",
     "trigger:dev": "set -a && . ./.env.local && set +a && npx trigger.dev@latest dev --config ./trigger.config.ts",
-    "trigger:deploy": "npx trigger.dev@latest deploy --config ./trigger.config.ts",
+    "trigger:deploy": "set -a && . ./.env.local && set +a && npx trigger.dev@latest deploy --config ./trigger.config.ts",
     "test:media:nodes": "node scripts/test-media-nodes.mjs"
   },
   "dependencies": {

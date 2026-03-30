@@ -1,4 +1,5 @@
 import { runs, tasks } from '@trigger.dev/sdk/v3'
+import { getTriggerProjectId, getTriggerSecretKey } from '@/lib/env/getTriggerEnv'
 
 interface TriggerTaskOptions {
   label: string
@@ -83,8 +84,18 @@ function isRetryableTriggerError(err: unknown): boolean {
 
 function assertTriggerEnv(): void {
   const missing: string[] = []
-  if (!process.env.TRIGGER_SECRET_KEY) missing.push('TRIGGER_SECRET_KEY')
-  if (!process.env.TRIGGER_PROJECT_ID) missing.push('TRIGGER_PROJECT_ID')
+
+  try {
+    getTriggerSecretKey()
+  } catch {
+    missing.push('TRIGGER_SECRET_KEY')
+  }
+
+  try {
+    getTriggerProjectId()
+  } catch {
+    missing.push('TRIGGER_PROJECT_ID')
+  }
 
   if (missing.length > 0) {
     throw new Error(
