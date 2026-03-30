@@ -1,4 +1,6 @@
 import { execFile } from 'child_process'
+import ffmpeg from 'fluent-ffmpeg'
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -14,6 +16,10 @@ export interface CropImageParams {
 
 const DEFAULT_MAX_BUFFER = 10 * 1024 * 1024
 const DEFAULT_COMMAND_TIMEOUT_MS = 90_000
+const FFMPEG_PATH = ffmpegInstaller.path
+
+ffmpeg.setFfmpegPath(FFMPEG_PATH)
+console.log('ffmpeg path', ffmpegInstaller.path)
 
 function runCommand(
   command: string,
@@ -69,7 +75,6 @@ function makeOutputPath(): string {
 
 export async function runCropImage(params: CropImageParams): Promise<{ url: string }> {
   ensureHttpUrl(params.imageUrl)
-  const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg'
   const outputPath = makeOutputPath()
   const startTime = Date.now()
 
@@ -84,7 +89,7 @@ export async function runCropImage(params: CropImageParams): Promise<{ url: stri
   const cropFilter = `crop=iw*${widthPercent}/100:ih*${heightPercent}/100:iw*${x}/100:ih*${y}/100`
 
   console.log('[nodeRunner:crop-image] start', {
-    ffmpegPath,
+    ffmpegPath: FFMPEG_PATH,
     imageUrl: params.imageUrl,
     outputPath,
     xPercent: x,
@@ -94,7 +99,7 @@ export async function runCropImage(params: CropImageParams): Promise<{ url: stri
   })
 
   try {
-    await runCommand(ffmpegPath, [
+    await runCommand(FFMPEG_PATH, [
       '-hide_banner',
       '-loglevel',
       'error',

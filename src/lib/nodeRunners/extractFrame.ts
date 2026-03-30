@@ -1,4 +1,7 @@
 import { execFile } from 'child_process'
+import ffmpeg from 'fluent-ffmpeg'
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
+import ffprobeInstaller from '@ffprobe-installer/ffprobe'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -6,6 +9,13 @@ import { uploadToTransloadit } from '@/trigger/utils/uploadToTransloadit'
 
 const DEFAULT_MAX_BUFFER = 10 * 1024 * 1024
 const DEFAULT_COMMAND_TIMEOUT_MS = 90_000
+const FFMPEG_PATH = ffmpegInstaller.path
+const FFPROBE_PATH = ffprobeInstaller.path
+
+ffmpeg.setFfmpegPath(FFMPEG_PATH)
+ffmpeg.setFfprobePath(FFPROBE_PATH)
+console.log('ffmpeg path', ffmpegInstaller.path)
+console.log('ffprobe path', ffprobeInstaller.path)
 
 export interface ExtractFrameParams {
   videoUrl: string
@@ -129,23 +139,21 @@ export async function runExtractFrame(
   params: ExtractFrameParams
 ): Promise<{ url: string; timestamp: string }> {
   ensureHttpUrl(params.videoUrl)
-  const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg'
-  const ffprobePath = process.env.FFPROBE_PATH || 'ffprobe'
   const outputPath = makeOutputPath()
   const startTime = Date.now()
 
   console.log('[nodeRunner:extract-frame] start', {
-    ffmpegPath,
-    ffprobePath,
+    ffmpegPath: FFMPEG_PATH,
+    ffprobePath: FFPROBE_PATH,
     videoUrl: params.videoUrl,
     timestamp: params.timestamp,
     outputPath,
   })
 
   try {
-    const seconds = await resolveTimestampSeconds(params.videoUrl, params.timestamp, ffprobePath)
+    const seconds = await resolveTimestampSeconds(params.videoUrl, params.timestamp, FFPROBE_PATH)
 
-    await runCommand(ffmpegPath, [
+    await runCommand(FFMPEG_PATH, [
       '-hide_banner',
       '-loglevel',
       'error',

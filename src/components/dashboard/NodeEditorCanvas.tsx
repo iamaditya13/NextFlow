@@ -84,6 +84,72 @@ const edgeTypes: EdgeTypes = {
 
 type CanvasMode = 'select' | 'pan' | 'scissor' | 'connect'
 
+type ScreenPoint = { x: number; y: number }
+
+function pointToSegmentDistance(point: ScreenPoint, segmentStart: ScreenPoint, segmentEnd: ScreenPoint) {
+  const dx = segmentEnd.x - segmentStart.x
+  const dy = segmentEnd.y - segmentStart.y
+  if (dx === 0 && dy === 0) return Math.hypot(point.x - segmentStart.x, point.y - segmentStart.y)
+  const t =
+    ((point.x - segmentStart.x) * dx + (point.y - segmentStart.y) * dy) /
+    (dx * dx + dy * dy)
+  const clampedT = Math.max(0, Math.min(1, t))
+  const projectedX = segmentStart.x + clampedT * dx
+  const projectedY = segmentStart.y + clampedT * dy
+  return Math.hypot(point.x - projectedX, point.y - projectedY)
+}
+
+function doesSegmentIntersectRect(
+  segmentStart: ScreenPoint,
+  segmentEnd: ScreenPoint,
+  rect: DOMRect,
+  padding: number
+) {
+  const minX = Math.min(segmentStart.x, segmentEnd.x) - padding
+  const maxX = Math.max(segmentStart.x, segmentEnd.x) + padding
+  const minY = Math.min(segmentStart.y, segmentEnd.y) - padding
+  const maxY = Math.max(segmentStart.y, segmentEnd.y) + padding
+
+  return !(maxX < rect.left || minX > rect.right || maxY < rect.top || minY > rect.bottom)
+}
+
+function doesScissorSegmentHitEdgePath(
+  edgePath: SVGPathElement,
+  segmentStart: ScreenPoint,
+  segmentEnd: ScreenPoint,
+  threshold = 10
+) {
+  try {
+    const bbox = edgePath.getBoundingClientRect()
+    if (!doesSegmentIntersectRect(segmentStart, segmentEnd, bbox, threshold)) return false
+
+    const ctm = edgePath.getScreenCTM()
+    if (!ctm) return false
+
+    const pathLength = edgePath.getTotalLength()
+    if (!Number.isFinite(pathLength) || pathLength <= 0) return false
+
+    const step = Math.max(6, Math.min(18, pathLength / 28))
+    for (let distance = 0; distance <= pathLength; distance += step) {
+      const localPoint = edgePath.getPointAtLength(distance)
+      const screenPoint = {
+        x: ctm.a * localPoint.x + ctm.c * localPoint.y + ctm.e,
+        y: ctm.b * localPoint.x + ctm.d * localPoint.y + ctm.f,
+      }
+      if (pointToSegmentDistance(screenPoint, segmentStart, segmentEnd) <= threshold) return true
+    }
+
+    const endLocalPoint = edgePath.getPointAtLength(pathLength)
+    const endScreenPoint = {
+      x: ctm.a * endLocalPoint.x + ctm.c * endLocalPoint.y + ctm.e,
+      y: ctm.b * endLocalPoint.x + ctm.d * endLocalPoint.y + ctm.f,
+    }
+    return pointToSegmentDistance(endScreenPoint, segmentStart, segmentEnd) <= threshold
+  } catch {
+    return false
+  }
+}
+
 // Detect if adding newEdge would create a cycle
 function wouldCreateCycle(
   nodes: Node[],
@@ -171,8 +237,24 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
   const [rightDropdownOpen, setRightDropdownOpen] = useState(false)
   const [spacePanning, setSpacePanning] = useState(false)
   const clipboardRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
+  const canvasSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const nodesRef = useRef<Node[]>([])
+  const edgesRef = useRef<Edge[]>([])
+  const scissorDraggingRef = useRef(false)
+  const scissorLastPointRef = useRef<ScreenPoint | null>(null)
+  const cutEdgeIdsRef = useRef<Set<string>>(new Set())
   // Debugged: browser setTimeout returns a numeric timer ID.
   const hideHoveredNodeToolbarRef = useRef<number | null>(null)
+  const [scissorCursorPos, setScissorCursorPos] = useState<ScreenPoint | null>(null)
+  const [scissorTrailPoints, setScissorTrailPoints] = useState<ScreenPoint[]>([])
+
+  useEffect(() => {
+    nodesRef.current = nodes
+  }, [nodes])
+
+  useEffect(() => {
+    edgesRef.current = edges
+  }, [edges])
 
   /** Run the full workflow via the client-side DAG executor. */
   const handleRunWorkflow = useCallback(
@@ -851,6 +933,144 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
     { id: 'presets' as const, icon: LayoutGrid, label: 'Presets' },
   ]
 
+  const findEdgesCrossedByScissorSegment = useCallback(
+    (segmentStart: ScreenPoint, segmentEnd: ScreenPoint) => {
+      const canvasSurface = canvasSurfaceRef.current
+      if (!canvasSurface) return []
+      const edgeElements = canvasSurface.querySelectorAll<SVGGElement>('.react-flow__edge[data-id]')
+      const crossedEdgeIds: string[] = []
+
+      edgeElements.forEach((edgeElement) => {
+        const edgeId = edgeElement.dataset.id
+        if (!edgeId || cutEdgeIdsRef.current.has(edgeId)) return
+        const edgePath = edgeElement.querySelector<SVGPathElement>('path')
+        if (!edgePath) return
+        if (doesScissorSegmentHitEdgePath(edgePath, segmentStart, segmentEnd)) {
+          crossedEdgeIds.push(edgeId)
+        }
+      })
+
+      return crossedEdgeIds
+    },
+    []
+  )
+
+  const finishScissorDrag = useCallback(() => {
+    if (!scissorDraggingRef.current) return
+    scissorDraggingRef.current = false
+    scissorLastPointRef.current = null
+    setScissorTrailPoints([])
+    if (cutEdgeIdsRef.current.size > 0) {
+      pushHistory(nodesRef.current, edgesRef.current)
+      cutEdgeIdsRef.current = new Set()
+    }
+  }, [pushHistory])
+
+  const handleGlobalScissorMouseMove = useCallback(
+    (event: MouseEvent) => {
+      if (canvasMode !== 'scissor') return
+      const canvasSurface = canvasSurfaceRef.current
+      if (!canvasSurface) return
+      const bounds = canvasSurface.getBoundingClientRect()
+
+      const isInsideCanvas =
+        event.clientX >= bounds.left &&
+        event.clientX <= bounds.right &&
+        event.clientY >= bounds.top &&
+        event.clientY <= bounds.bottom
+      if (isInsideCanvas) {
+        setScissorCursorPos({
+          x: event.clientX - bounds.left,
+          y: event.clientY - bounds.top,
+        })
+      } else if (!scissorDraggingRef.current) {
+        setScissorCursorPos(null)
+      }
+
+      if (!scissorDraggingRef.current || !scissorLastPointRef.current) return
+
+      const currentPoint = { x: event.clientX, y: event.clientY }
+      const previousPoint = scissorLastPointRef.current
+      scissorLastPointRef.current = currentPoint
+
+      setScissorTrailPoints((points) => {
+        const nextPoint = { x: event.clientX - bounds.left, y: event.clientY - bounds.top }
+        if (points.length === 0) return [nextPoint]
+        const lastPoint = points[points.length - 1]
+        if (Math.hypot(nextPoint.x - lastPoint.x, nextPoint.y - lastPoint.y) < 1.5) return points
+        const trimmedPoints = points.length > 80 ? points.slice(points.length - 80) : points
+        return [...trimmedPoints, nextPoint]
+      })
+
+      const crossedEdgeIds = findEdgesCrossedByScissorSegment(previousPoint, currentPoint)
+      if (crossedEdgeIds.length === 0) return
+
+      setEdges((currentEdges) => {
+        let hasNewCuts = false
+        for (const edgeId of crossedEdgeIds) {
+          if (cutEdgeIdsRef.current.has(edgeId)) continue
+          cutEdgeIdsRef.current.add(edgeId)
+          hasNewCuts = true
+        }
+        if (!hasNewCuts) return currentEdges
+        const nextEdges = currentEdges.filter((edge) => !cutEdgeIdsRef.current.has(edge.id))
+        edgesRef.current = nextEdges
+        return nextEdges
+      })
+    },
+    [canvasMode, findEdgesCrossedByScissorSegment, setEdges]
+  )
+
+  const beginScissorDrag = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (canvasMode !== 'scissor' || event.button !== 0) return
+
+      const target = event.target as HTMLElement
+      if (!target.closest('.react-flow')) return
+      if (target.closest('button, input, textarea, select, a, [contenteditable="true"]')) return
+
+      const canvasSurface = canvasSurfaceRef.current
+      if (!canvasSurface) return
+      const bounds = canvasSurface.getBoundingClientRect()
+
+      scissorDraggingRef.current = true
+      scissorLastPointRef.current = { x: event.clientX, y: event.clientY }
+      cutEdgeIdsRef.current = new Set()
+      setScissorCursorPos({
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+      })
+      setScissorTrailPoints([
+        {
+          x: event.clientX - bounds.left,
+          y: event.clientY - bounds.top,
+        },
+      ])
+
+      event.preventDefault()
+      event.stopPropagation()
+    },
+    [canvasMode]
+  )
+
+  useEffect(() => {
+    window.addEventListener('mousemove', handleGlobalScissorMouseMove)
+    window.addEventListener('mouseup', finishScissorDrag)
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalScissorMouseMove)
+      window.removeEventListener('mouseup', finishScissorDrag)
+    }
+  }, [handleGlobalScissorMouseMove, finishScissorDrag])
+
+  useEffect(() => {
+    if (canvasMode === 'scissor') return
+    scissorDraggingRef.current = false
+    scissorLastPointRef.current = null
+    cutEdgeIdsRef.current = new Set()
+    setScissorTrailPoints([])
+    setScissorCursorPos(null)
+  }, [canvasMode])
+
   void historyLen
 
   return (
@@ -858,9 +1078,15 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
       <div className="h-screen relative flex" style={{ background: 'var(--nf-bg-canvas)' }}>
         {/* Canvas */}
         <div
+          ref={canvasSurfaceRef}
           className="flex-1 relative"
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
+          onMouseDown={beginScissorDrag}
+          onMouseLeave={() => {
+            if (!scissorDraggingRef.current) setScissorCursorPos(null)
+          }}
+          style={{ cursor: canvasMode === 'scissor' ? 'crosshair' : undefined }}
         >
           <ReactFlow
             nodes={enhancedNodes}
@@ -898,6 +1124,9 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
             fitView
             panOnDrag={canvasMode === 'pan' || spacePanning}
             selectionOnDrag={canvasMode === 'select'}
+            nodesDraggable={canvasMode !== 'scissor'}
+            nodesConnectable={canvasMode !== 'scissor'}
+            elementsSelectable={canvasMode !== 'scissor'}
             style={{ background: 'var(--nf-bg-canvas)' }}
             defaultEdgeOptions={{
               type: 'flowing',
@@ -922,8 +1151,39 @@ function NodeEditorCanvasInner({ flowId }: NodeEditorCanvasProps) {
             />
           </ReactFlow>
 
+          {canvasMode === 'scissor' && scissorTrailPoints.length > 1 && (
+            <svg className="absolute inset-0 z-[15] pointer-events-none">
+              <polyline
+                fill="none"
+                stroke="#0080ff"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray="5 5"
+                points={scissorTrailPoints.map((point) => `${point.x},${point.y}`).join(' ')}
+              />
+            </svg>
+          )}
+
+          {canvasMode === 'scissor' && scissorCursorPos && (
+            <div
+              className="absolute z-[16] pointer-events-none"
+              style={{
+                left: scissorCursorPos.x + 12,
+                top: scissorCursorPos.y + 10,
+              }}
+            >
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center
+                           bg-white/95 dark:bg-[#1c1c1c]/95 border border-black/10 dark:border-white/10 shadow-md"
+              >
+                <Scissors className="w-3.5 h-3.5 text-[#0080ff]" />
+              </div>
+            </div>
+          )}
+
           {/* === OVERLAY LAYER === */}
-          <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none" data-scissor-ignore="true">
             {/* Top-left: Title bar */}
             <div className="absolute top-4 left-4 pointer-events-auto">
               <div

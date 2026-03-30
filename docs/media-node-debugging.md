@@ -15,8 +15,9 @@ Set these in `.env.local`:
 Optional local-debug vars:
 
 - `MEDIA_NODE_LOCAL_FALLBACK=1` to run local ffmpeg processing when Trigger worker is unavailable.
-- `FFMPEG_PATH` and `FFPROBE_PATH` if binaries are not on PATH.
 - `TEST_IMAGE_URL` / `TEST_VIDEO_URL` for integration testing.
+
+`crop-image` and `extract-frame` now use bundled binaries from `@ffmpeg-installer/ffmpeg` and `@ffprobe-installer/ffprobe`, so no system `ffmpeg`/`ffprobe` installation is required on local machines, Vercel, or Trigger.dev workers.
 
 ## 2) Start local services
 
