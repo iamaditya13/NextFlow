@@ -125,12 +125,46 @@ function makeOutputPath(): string {
   return path.join(tmpDir, `frame_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`)
 }
 
+function getExtensionFromUrl(rawUrl: string): string {
+  const extension = path.extname(new URL(rawUrl).pathname)
+  if (!extension || extension.length > 10) {
+    return ''
+  }
+  return extension
+}
+
+function makeInputPath(rawUrl: string): string {
+  const tmpDir = os.tmpdir()
+  const extension = getExtensionFromUrl(rawUrl)
+  return path.join(
+    tmpDir,
+    `extract_input_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${extension}`
+  )
+}
+
+async function downloadRemoteFileToPath(sourceUrl: string, targetPath: string): Promise<void> {
+  const response = await fetch(sourceUrl)
+  if (!response.ok) {
+    throw new Error(
+      `Failed to download video from "${sourceUrl}": ${response.status} ${response.statusText}`
+    )
+  }
+
+  const data = Buffer.from(await response.arrayBuffer())
+  if (data.length === 0) {
+    throw new Error(`Downloaded video from "${sourceUrl}" is empty`)
+  }
+
+  await fs.promises.writeFile(targetPath, data)
+}
+
 export async function runExtractFrame(
   params: ExtractFrameParams
 ): Promise<{ url: string; timestamp: string }> {
   ensureHttpUrl(params.videoUrl)
   const ffmpegCommand = process.env.FFMPEG_PATH || 'ffmpeg'
   const ffprobeCommand = process.env.FFPROBE_PATH || 'ffprobe'
+  const inputPath = makeInputPath(params.videoUrl)
   const outputPath = makeOutputPath()
   const startTime = Date.now()
 
@@ -138,12 +172,15 @@ export async function runExtractFrame(
     ffmpegCommand,
     ffprobeCommand,
     videoUrl: params.videoUrl,
+    inputPath,
     timestamp: params.timestamp,
     outputPath,
   })
 
   try {
-    const seconds = await resolveTimestampSeconds(params.videoUrl, params.timestamp, ffprobeCommand)
+    await downloadRemoteFileToPath(params.videoUrl, inputPath)
+
+    const seconds = await resolveTimestampSeconds(inputPath, params.timestamp, ffprobeCommand)
 
     await runCommand(ffmpegCommand, [
       '-hide_banner',
@@ -154,7 +191,7 @@ export async function runExtractFrame(
       '-ss',
       seconds,
       '-i',
-      params.videoUrl,
+      inputPath,
       '-frames:v',
       '1',
       '-q:v',
@@ -187,6 +224,9 @@ export async function runExtractFrame(
   } finally {
     try {
       fs.unlinkSync(outputPath)
+    } catch {}
+    try {
+      fs.unlinkSync(inputPath)
     } catch {}
   }
 }

@@ -67,9 +67,43 @@ function makeOutputPath(): string {
   )
 }
 
+function getExtensionFromUrl(rawUrl: string): string {
+  const extension = path.extname(new URL(rawUrl).pathname)
+  if (!extension || extension.length > 10) {
+    return ''
+  }
+  return extension
+}
+
+function makeInputPath(rawUrl: string): string {
+  const tmpDir = os.tmpdir()
+  const extension = getExtensionFromUrl(rawUrl)
+  return path.join(
+    tmpDir,
+    `crop_input_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${extension}`
+  )
+}
+
+async function downloadRemoteFileToPath(sourceUrl: string, targetPath: string): Promise<void> {
+  const response = await fetch(sourceUrl)
+  if (!response.ok) {
+    throw new Error(
+      `Failed to download image from "${sourceUrl}": ${response.status} ${response.statusText}`
+    )
+  }
+
+  const data = Buffer.from(await response.arrayBuffer())
+  if (data.length === 0) {
+    throw new Error(`Downloaded image from "${sourceUrl}" is empty`)
+  }
+
+  await fs.promises.writeFile(targetPath, data)
+}
+
 export async function runCropImage(params: CropImageParams): Promise<{ url: string }> {
   ensureHttpUrl(params.imageUrl)
   const ffmpegCommand = process.env.FFMPEG_PATH || 'ffmpeg'
+  const inputPath = makeInputPath(params.imageUrl)
   const outputPath = makeOutputPath()
   const startTime = Date.now()
 
@@ -86,6 +120,7 @@ export async function runCropImage(params: CropImageParams): Promise<{ url: stri
   console.log('[nodeRunner:crop-image] start', {
     ffmpegCommand,
     imageUrl: params.imageUrl,
+    inputPath,
     outputPath,
     xPercent: x,
     yPercent: y,
@@ -94,6 +129,8 @@ export async function runCropImage(params: CropImageParams): Promise<{ url: stri
   })
 
   try {
+    await downloadRemoteFileToPath(params.imageUrl, inputPath)
+
     await runCommand(ffmpegCommand, [
       '-hide_banner',
       '-loglevel',
@@ -101,7 +138,7 @@ export async function runCropImage(params: CropImageParams): Promise<{ url: stri
       '-rw_timeout',
       '30000000',
       '-i',
-      params.imageUrl,
+      inputPath,
       '-vf',
       cropFilter,
       '-frames:v',
@@ -133,6 +170,9 @@ export async function runCropImage(params: CropImageParams): Promise<{ url: stri
   } finally {
     try {
       fs.unlinkSync(outputPath)
+    } catch {}
+    try {
+      fs.unlinkSync(inputPath)
     } catch {}
   }
 }
