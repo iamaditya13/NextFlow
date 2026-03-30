@@ -1,5 +1,4 @@
 import { task } from '@trigger.dev/sdk/v3'
-import ffmpeg from 'fluent-ffmpeg'
 import { prisma } from '@/lib/prisma'
 
 interface CropPayload {
@@ -10,14 +9,6 @@ interface CropPayload {
   heightPercent: number
   runId: string
   nodeId: string
-}
-
-function resolveInstallerPath(module: { default?: { path?: string }; path?: string }): string {
-  const installerPath = module.default?.path ?? module.path
-  if (!installerPath) {
-    throw new Error('Unable to resolve ffmpeg binary path from installer package')
-  }
-  return installerPath
 }
 
 export const cropImageTask = task({
@@ -56,14 +47,6 @@ export const cropImageTask = task({
     }
 
     try {
-      const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg') as {
-        default?: { path?: string }
-        path?: string
-      }
-      const ffmpegPath = resolveInstallerPath(ffmpegInstaller)
-      ffmpeg.setFfmpegPath(ffmpegPath)
-      console.log('Resolved ffmpeg path:', ffmpegPath)
-
       const { runCropImage } = await import('@/lib/nodeRunners/cropImage')
       const result = await runCropImage({
         imageUrl,

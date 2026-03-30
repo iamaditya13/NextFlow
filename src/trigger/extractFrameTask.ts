@@ -1,5 +1,4 @@
 import { task } from '@trigger.dev/sdk/v3'
-import ffmpeg from 'fluent-ffmpeg'
 import { prisma } from '@/lib/prisma'
 
 interface ExtractPayload {
@@ -7,17 +6,6 @@ interface ExtractPayload {
   timestamp: string
   runId: string
   nodeId: string
-}
-
-function resolveInstallerPath(
-  module: { default?: { path?: string }; path?: string },
-  binaryName: 'ffmpeg' | 'ffprobe'
-): string {
-  const installerPath = module.default?.path ?? module.path
-  if (!installerPath) {
-    throw new Error(`Unable to resolve ${binaryName} binary path from installer package`)
-  }
-  return installerPath
 }
 
 export const extractFrameTask = task({
@@ -45,27 +33,6 @@ export const extractFrameTask = task({
     }
 
     try {
-      const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg') as {
-        default?: { path?: string }
-        path?: string
-      }
-      const ffprobeInstaller = require('@ffprobe-installer/ffprobe') as {
-        default?: { path?: string }
-        path?: string
-      }
-      const ffmpegPath = resolveInstallerPath(
-        ffmpegInstaller,
-        'ffmpeg'
-      )
-      const ffprobePath = resolveInstallerPath(
-        ffprobeInstaller,
-        'ffprobe'
-      )
-      ffmpeg.setFfmpegPath(ffmpegPath)
-      ffmpeg.setFfprobePath(ffprobePath)
-      console.log('Resolved ffmpeg path:', ffmpegPath)
-      console.log('Resolved ffprobe path:', ffprobePath)
-
       const { runExtractFrame } = await import('@/lib/nodeRunners/extractFrame')
       const result = await runExtractFrame({
         videoUrl,
