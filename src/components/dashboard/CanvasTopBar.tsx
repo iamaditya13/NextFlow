@@ -278,7 +278,7 @@ export function CanvasTopBar({
           onClick={onRun}
           disabled={isExecuting}
           style={{
-            background: isExecuting ? '#004999' : '#0080ff',
+            background: isExecuting ? '#dc2626' : '#0080ff',
             color: '#fff',
             opacity: isExecuting ? 0.7 : 1,
             cursor: isExecuting ? 'not-allowed' : 'pointer',

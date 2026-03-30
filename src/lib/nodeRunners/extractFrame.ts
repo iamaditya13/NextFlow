@@ -158,6 +158,23 @@ async function downloadRemoteFileToPath(sourceUrl: string, targetPath: string): 
   await fs.promises.writeFile(targetPath, data)
 }
 
+async function assertVideoUrlAccessible(videoUrl: string): Promise<void> {
+  let response: Response
+  try {
+    response = await fetch(videoUrl, { method: 'HEAD' })
+  } catch {
+    throw new Error(
+      'Video URL is no longer accessible. Please re-upload the video and try again.'
+    )
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Video URL is no longer accessible (HTTP ${response.status}). Please re-upload the video and try again.`
+    )
+  }
+}
+
 export async function runExtractFrame(
   params: ExtractFrameParams
 ): Promise<{ url: string; timestamp: string }> {
@@ -178,6 +195,7 @@ export async function runExtractFrame(
   })
 
   try {
+    await assertVideoUrlAccessible(params.videoUrl)
     await downloadRemoteFileToPath(params.videoUrl, inputPath)
 
     const seconds = await resolveTimestampSeconds(inputPath, params.timestamp, ffprobeCommand)
