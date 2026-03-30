@@ -1,10 +1,6 @@
 import { task } from '@trigger.dev/sdk/v3'
-import { execFile } from 'child_process'
-import * as fs from 'fs'
-import * as os from 'os'
-import * as path from 'path'
 import { prisma } from '@/lib/prisma'
-import { uploadToTransloadit } from './utils/uploadToTransloadit'
+import { runCropImage } from '@/lib/nodeRunners/cropImage'
 
 interface CropPayload {
   imageUrl: string
@@ -21,26 +17,6 @@ export const cropImageTask = task({
   maxDuration: 300,
 
   run: async (payload: CropPayload) => {
-    const runCommand = (command: string, args: string[]) =>
-      new Promise<string>((resolve, reject) => {
-        execFile(
-          command,
-          args,
-          { maxBuffer: 10 * 1024 * 1024 },
-          (error, stdout, stderr) => {
-            if (error) {
-              const details = (stderr || stdout || error.message || '').toString().trim()
-              reject(new Error(details || `${command} failed`))
-              return
-            }
-            resolve((stdout || '').toString())
-          }
-        )
-      })
-
-    const clampPercent = (value: number) =>
-      Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0))
-
     const {
       imageUrl,
       xPercent,
@@ -50,6 +26,16 @@ export const cropImageTask = task({
       runId,
       nodeId,
     } = payload
+
+    const startTime = Date.now()
+    const taskPrefix = `[trigger-task:crop-image] [runId:${runId}] [nodeId:${nodeId}]`
+    console.log(`${taskPrefix} payload received`, {
+      imageUrl,
+      xPercent,
+      yPercent,
+      widthPercent,
+      heightPercent,
+    })
 
     if (runId !== '__standalone__') {
       await prisma.nodeResult.updateMany({
@@ -61,72 +47,43 @@ export const cropImageTask = task({
       })
     }
 
-    const startTime = Date.now()
-    const tmpDir = os.tmpdir()
-    const outputPath = path.join(tmpDir, `cropped_${Date.now()}.jpg`)
-
     try {
-      // Use ffmpeg directly on the source URL to avoid an extra download-to-disk hop.
-      const x = clampPercent(xPercent)
-      const y = clampPercent(yPercent)
-      const w = Math.max(1, clampPercent(widthPercent))
-      const h = Math.max(1, clampPercent(heightPercent))
-
-      const xExpr = `floor(max(0,min(iw*${x}/100,iw-1)))`
-      const yExpr = `floor(max(0,min(ih*${y}/100,ih-1)))`
-      const wExpr = `max(1,floor(min(iw*${w}/100,iw-(${xExpr}))))`
-      const hExpr = `max(1,floor(min(ih*${h}/100,ih-(${yExpr}))))`
-      const cropFilter = `crop=${wExpr}:${hExpr}:${xExpr}:${yExpr}`
-
-      await runCommand('ffmpeg', [
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-i',
+      const result = await runCropImage({
         imageUrl,
-        '-vf',
-        cropFilter,
-        '-frames:v',
-        '1',
-        '-y',
-        outputPath,
-      ])
-
-      const fileExists = fs.existsSync(outputPath)
-      if (!fileExists) {
-        throw new Error('Crop output file was not generated')
-      }
-
-      const fileSize = fs.statSync(outputPath).size
-      if (fileSize <= 0) {
-        throw new Error('Crop output file is empty')
-      }
-
-      const url = await uploadToTransloadit(outputPath, 'image/jpeg')
+        xPercent,
+        yPercent,
+        widthPercent,
+        heightPercent,
+      })
       const duration = Date.now() - startTime
+      console.log(`${taskPrefix} completed`, { durationMs: duration, outputUrl: result.url })
 
       if (runId !== '__standalone__') {
         await prisma.nodeResult.updateMany({
           where: { runId, nodeId },
           data: {
             status: 'SUCCESS',
-            outputs: { url },
+            outputs: { url: result.url },
             completedAt: new Date(),
             duration,
           },
         })
       }
 
-      return { url }
-    } catch (error: any) {
+      return { url: result.url }
+    } catch (error: unknown) {
       const duration = Date.now() - startTime
+      const message =
+        error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
+
+      console.error(`${taskPrefix} failed`, error)
 
       if (runId !== '__standalone__') {
         await prisma.nodeResult.updateMany({
           where: { runId, nodeId },
           data: {
             status: 'FAILED',
-            error: error.message,
+            error: message,
             completedAt: new Date(),
             duration,
           },
@@ -134,10 +91,6 @@ export const cropImageTask = task({
       }
 
       throw error
-    } finally {
-      try {
-        fs.unlinkSync(outputPath)
-      } catch {}
     }
   },
 })

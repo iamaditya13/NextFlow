@@ -102,6 +102,34 @@ function getImageUrlsForNode(
 // ── Timeout-aware fetch ──────────────────────────────────────────────────────
 
 const NODE_FETCH_TIMEOUT_MS = 120_000 // 2 minutes — matches API route maxDuration
+const NODE_EXEC_RETRY_ATTEMPTS = 2
+const NODE_EXEC_RETRY_BASE_DELAY_MS = 1_000
+const RETRYABLE_NODE_ERROR_PATTERNS = [
+  'timed out',
+  'timeout',
+  'networkerror',
+  'failed to fetch',
+  'socket hang up',
+  'econnreset',
+  'econnrefused',
+  '429',
+  '503',
+]
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  return 'Unknown error'
+}
+
+function isRetryableNodeError(err: unknown): boolean {
+  const message = getErrorMessage(err).toLowerCase()
+  return RETRYABLE_NODE_ERROR_PATTERNS.some((pattern) => message.includes(pattern))
+}
 
 async function fetchWithTimeout(
   url: string,
@@ -250,6 +278,39 @@ async function executeNode(
   }
 }
 
+async function executeNodeWithRetry(
+  node: ExecutorNode,
+  edges: ExecutorEdge[],
+  outputs: Map<string, Record<string, unknown>>,
+  maxAttempts: number
+): Promise<Record<string, unknown>> {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await executeNode(node, edges, outputs)
+    } catch (err: unknown) {
+      lastError = err
+      const retryable = attempt < maxAttempts && isRetryableNodeError(err)
+      console.error('[workflowExecutor] node execution failed', {
+        nodeId: node.id,
+        nodeType: node.type,
+        attempt,
+        retryable,
+        error: getErrorMessage(err),
+      })
+
+      if (!retryable) {
+        break
+      }
+
+      await sleep(NODE_EXEC_RETRY_BASE_DELAY_MS * attempt)
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(getErrorMessage(lastError))
+}
+
 // ── Main executor ─────────────────────────────────────────────────────────────
 
 /**
@@ -291,13 +352,23 @@ export async function runWorkflow(
 
   // Recursively mark downstream nodes as failed
   const markDownstreamFailed = (failedId: string) => {
+    const upstreamError = outputs.get(failedId)?.error
+    const upstreamMessage =
+      typeof upstreamError === 'string' && upstreamError.trim().length > 0
+        ? upstreamError
+        : null
+
     for (const node of nodes) {
       if (failed.has(node.id) || completed.has(node.id)) continue
       if (edges.some((e) => e.source === failedId && e.target === node.id)) {
         failed.add(node.id)
+        const failureMessage = upstreamMessage
+          ? `Upstream node "${failedId}" failed: ${upstreamMessage}`
+          : `Upstream node "${failedId}" failed`
+        outputs.set(node.id, { error: failureMessage })
         callbacks.onNodeStatus(node.id, 'failed')
         callbacks.onNodeOutput(node.id, {
-          error: `Upstream node "${failedId}" failed`,
+          error: failureMessage,
         })
         markDownstreamFailed(node.id)
       }
@@ -323,7 +394,9 @@ export async function runWorkflow(
 
     // Execute the entire wave in parallel
     const results = await Promise.allSettled(
-      readyNodes.map((node) => executeNode(node, edges, outputs))
+      readyNodes.map((node) =>
+        executeNodeWithRetry(node, edges, outputs, NODE_EXEC_RETRY_ATTEMPTS)
+      )
     )
 
     for (let i = 0; i < results.length; i++) {

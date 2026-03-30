@@ -15,6 +15,33 @@ interface WorkflowEdge {
   targetHandle: string
 }
 
+const NODE_RETRY_ATTEMPTS = 2
+const NODE_RETRY_BASE_DELAY_MS = 1200
+const RETRYABLE_NODE_ERROR_PATTERNS = [
+  'timed out',
+  'timeout',
+  'socket hang up',
+  'econnreset',
+  'econnrefused',
+  '429',
+  '503',
+]
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  return 'Unknown error'
+}
+
+function isRetryableNodeError(err: unknown): boolean {
+  const message = getErrorMessage(err).toLowerCase()
+  return RETRYABLE_NODE_ERROR_PATTERNS.some((pattern) => message.includes(pattern))
+}
+
 export async function executeWorkflow(
   workflowId: string,
   userId: string,
@@ -120,7 +147,9 @@ export async function executeWorkflow(
     }
 
     const results = await Promise.allSettled(
-      readyNodes.map((node) => executeNode(node, run.id, edges, nodeOutputs))
+      readyNodes.map((node) =>
+        executeNodeWithRetry(node, run.id, edges, nodeOutputs, NODE_RETRY_ATTEMPTS)
+      )
     )
 
     for (let i = 0; i < results.length; i++) {
@@ -136,7 +165,7 @@ export async function executeWorkflow(
           error: result.reason?.message || 'Unknown error',
         })
 
-        await markDownstreamFailed(node.id, nodesToRun, edges, failed, run.id)
+        await markDownstreamFailed(node.id, nodesToRun, edges, failed, run.id, nodeOutputs)
       }
     }
   }
@@ -170,6 +199,40 @@ export async function executeWorkflow(
     completed: [...completed],
     failed: [...failed],
   }
+}
+
+async function executeNodeWithRetry(
+  node: WorkflowNode,
+  runId: string,
+  edges: WorkflowEdge[],
+  nodeOutputs: Map<string, Record<string, unknown>>,
+  maxAttempts: number
+): Promise<Record<string, unknown>> {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await executeNode(node, runId, edges, nodeOutputs)
+    } catch (err: unknown) {
+      lastError = err
+      const retryable = attempt < maxAttempts && isRetryableNodeError(err)
+      console.error('[executionEngine] node execution failed', {
+        nodeId: node.id,
+        nodeType: node.type,
+        attempt,
+        retryable,
+        error: getErrorMessage(err),
+      })
+
+      if (!retryable) {
+        break
+      }
+
+      await sleep(NODE_RETRY_BASE_DELAY_MS * attempt)
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(getErrorMessage(lastError))
 }
 
 async function executeNode(
@@ -387,8 +450,15 @@ async function markDownstreamFailed(
   nodes: WorkflowNode[],
   edges: WorkflowEdge[],
   failed: Set<string>,
-  runId: string
+  runId: string,
+  nodeOutputs: Map<string, Record<string, unknown>>
 ) {
+  const upstreamError = nodeOutputs.get(failedNodeId)?.error
+  const upstreamMessage =
+    typeof upstreamError === 'string' && upstreamError.trim().length > 0
+      ? upstreamError
+      : null
+
   const downstream = nodes.filter((n) =>
     edges.some((e) => e.source === failedNodeId && e.target === n.id)
   )
@@ -396,18 +466,23 @@ async function markDownstreamFailed(
   for (const node of downstream) {
     if (!failed.has(node.id)) {
       failed.add(node.id)
+      const failureMessage = upstreamMessage
+        ? `Upstream node failed: ${failedNodeId}. ${upstreamMessage}`
+        : `Upstream node failed: ${failedNodeId}`
+      nodeOutputs.set(node.id, { error: failureMessage })
+
       await prisma.nodeResult.updateMany({
         where: { runId, nodeId: node.id },
         data: {
           status: 'FAILED',
-          error: `Upstream node failed: ${failedNodeId}`,
+          error: failureMessage,
           startedAt: new Date(),
           completedAt: new Date(),
           duration: 0,
         },
       })
 
-      await markDownstreamFailed(node.id, nodes, edges, failed, runId)
+      await markDownstreamFailed(node.id, nodes, edges, failed, runId, nodeOutputs)
     }
   }
 }
