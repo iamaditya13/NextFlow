@@ -10,11 +10,11 @@ import {
   Folders,
   History,
   Keyboard,
-  Loader2,
   Package,
   Play,
   Redo2,
   Share2,
+  Square,
   Undo2,
   Upload,
 } from 'lucide-react'
@@ -30,6 +30,7 @@ interface CanvasTopBarProps {
   onExport?: () => void
   onImport?: () => void
   onRun?: () => void
+  onStop?: () => void
   isExecuting?: boolean
   onToggleHistory?: () => void
   onUndo?: () => void
@@ -48,6 +49,7 @@ export function CanvasTopBar({
   onExport,
   onImport,
   onRun,
+  onStop,
   isExecuting = false,
   onToggleHistory,
   onUndo,
@@ -275,19 +277,19 @@ export function CanvasTopBar({
 
         <button
           className="nf-top-actions__btn"
-          onClick={onRun}
-          disabled={isExecuting}
+          onClick={isExecuting ? onStop : onRun}
+          disabled={isExecuting ? !onStop : !onRun}
           style={{
             background: isExecuting ? '#dc2626' : '#0080ff',
             color: '#fff',
-            opacity: isExecuting ? 0.7 : 1,
-            cursor: isExecuting ? 'not-allowed' : 'pointer',
+            opacity: isExecuting ? (onStop ? 1 : 0.7) : 1,
+            cursor: isExecuting ? (onStop ? 'pointer' : 'not-allowed') : 'pointer',
           }}
         >
           {isExecuting ? (
             <>
-              <Loader2 size={14} className="nf-spin" />
-              <span>Running...</span>
+              <Square size={14} />
+              <span>Stop</span>
             </>
           ) : (
             <>

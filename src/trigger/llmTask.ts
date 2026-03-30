@@ -1,29 +1,41 @@
-import { task } from '@trigger.dev/sdk/v3'
+import { task } from '@trigger.dev/sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import type { GenerateContentRequest } from '@google/generative-ai'
 import { prisma } from '@/lib/prisma'
+import { getGeminiApiKey } from '@/lib/env/getTriggerEnv'
 
-const FINAL_GEMINI_FALLBACK_MODEL = 'gemini-2.0-flash-lite'
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'
+const DEFAULT_GEMINI_FALLBACK_MODEL = 'gemini-flash-latest'
+
+const LEGACY_MODEL_REMAP: Record<string, string> = {
+  'gemini-1.5-flash': DEFAULT_GEMINI_MODEL,
+  'gemini-1.5-pro': DEFAULT_GEMINI_MODEL,
+  'gemini-1.5-pro-latest': DEFAULT_GEMINI_MODEL,
+  'gemini-2.0-flash': DEFAULT_GEMINI_MODEL,
+  'gemini-2.0-flash-lite': DEFAULT_GEMINI_MODEL,
+  'gemini-pro': DEFAULT_GEMINI_MODEL,
+}
 
 function remapGeminiModel(model?: string): { primary: string; fallback?: string } {
-  const normalizedModel = model?.trim()
+  const normalizedModel = model?.trim().toLowerCase()
 
   if (!normalizedModel) {
-    return { primary: FINAL_GEMINI_FALLBACK_MODEL }
+    return { primary: DEFAULT_GEMINI_MODEL, fallback: DEFAULT_GEMINI_FALLBACK_MODEL }
   }
 
-  if (normalizedModel === 'gemini-1.5-flash') {
-    return { primary: FINAL_GEMINI_FALLBACK_MODEL }
+  const remapped = LEGACY_MODEL_REMAP[normalizedModel]
+  if (remapped) {
+    return { primary: remapped, fallback: DEFAULT_GEMINI_FALLBACK_MODEL }
   }
 
-  if (normalizedModel === 'gemini-1.5-pro') {
-    return { primary: 'gemini-1.5-pro-latest', fallback: 'gemini-2.0-flash' }
+  if (
+    normalizedModel === DEFAULT_GEMINI_MODEL ||
+    normalizedModel === DEFAULT_GEMINI_FALLBACK_MODEL
+  ) {
+    return { primary: normalizedModel, fallback: DEFAULT_GEMINI_FALLBACK_MODEL }
   }
 
-  if (normalizedModel === 'gemini-2.0-flash') {
-    return { primary: 'gemini-2.0-flash' }
-  }
-
-  return { primary: FINAL_GEMINI_FALLBACK_MODEL }
+  return { primary: normalizedModel, fallback: DEFAULT_GEMINI_FALLBACK_MODEL }
 }
 
 function isInvalidGeminiModelError(error: unknown): boolean {
@@ -45,6 +57,19 @@ function isInvalidGeminiModelError(error: unknown): boolean {
     normalized.includes('deprecated') ||
     normalized.includes('not available')
   )
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (
+    error &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof (error as { message?: unknown }).message === 'string'
+  ) {
+    return (error as { message: string }).message
+  }
+  return String(error)
 }
 
 interface LLMPayload {
@@ -76,15 +101,22 @@ export const llmTask = task({
     const startTime = Date.now()
 
     try {
-      const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!)
+      const apiKey = getGeminiApiKey()
+      const genAI = new GoogleGenerativeAI(apiKey)
       const { primary: mappedModel, fallback: remappedFallbackModel } = remapGeminiModel(model)
+      let resolvedModel = mappedModel
 
-      const parts: any[] = []
+      const parts: Array<
+        { inlineData: { data: string; mimeType: string } } | { text: string }
+      > = []
 
       if (imageUrls && imageUrls.length > 0) {
         for (const url of imageUrls) {
           try {
             const res = await fetch(url)
+            if (!res.ok) {
+              throw new Error(`Failed to fetch image (${res.status} ${res.statusText})`)
+            }
             const buffer = await res.arrayBuffer()
             const base64 = Buffer.from(buffer).toString('base64')
             const contentType = res.headers.get('content-type') || 'image/jpeg'
@@ -103,12 +135,13 @@ export const llmTask = task({
 
       parts.push({ text: userMessage })
 
-      const request: any = {
+      const request: GenerateContentRequest = {
         contents: [{ role: 'user', parts }],
       }
 
       if (systemPrompt) {
         request.systemInstruction = {
+          role: 'system',
           parts: [{ text: systemPrompt }],
         }
       }
@@ -129,9 +162,13 @@ export const llmTask = task({
           model: remappedFallbackModel,
         })
         result = await fallbackModel.generateContent(request)
+        resolvedModel = remappedFallbackModel
       }
 
-      const text = result.response.text()
+      const text = result.response.text().trim()
+      if (!text) {
+        throw new Error(`Gemini returned an empty response for model "${resolvedModel}"`)
+      }
       const duration = Date.now() - startTime
 
       if (runId !== '__standalone__') {
@@ -139,30 +176,31 @@ export const llmTask = task({
           where: { runId, nodeId },
           data: {
             status: 'SUCCESS',
-            outputs: { text },
+            outputs: { text, model: resolvedModel },
             completedAt: new Date(),
             duration,
           },
         })
       }
 
-      return { text, duration }
-    } catch (error: any) {
+      return { text, duration, model: resolvedModel }
+    } catch (error: unknown) {
       const duration = Date.now() - startTime
+      const message = getErrorMessage(error)
 
       if (runId !== '__standalone__') {
         await prisma.nodeResult.updateMany({
           where: { runId, nodeId },
           data: {
             status: 'FAILED',
-            error: error.message,
+            error: message,
             completedAt: new Date(),
             duration,
           },
         })
       }
 
-      throw error
+      throw error instanceof Error ? error : new Error(message)
     }
   },
 })

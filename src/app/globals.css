@@ -59,6 +59,19 @@
   --nf-hover-bg: rgba(0,0,0,0.05);
   --nf-press-bg: rgba(0,0,0,0.08);
 
+  /* Form controls */
+  --nf-control-height: 24px;
+  --nf-control-radius: var(--nf-radius-md);
+  --nf-control-padding-x: 10px;
+  --nf-control-bg: var(--nf-bg-node-inner);
+  --nf-control-bg-hover: color-mix(in srgb, var(--nf-bg-node-inner) 80%, var(--nf-bg-node));
+  --nf-control-border: var(--nf-border-inner);
+  --nf-control-border-focus: var(--nf-accent-blue);
+  --nf-control-focus-ring: color-mix(in srgb, var(--nf-accent-blue) 24%, transparent);
+  --nf-control-option-bg: var(--nf-bg-node);
+  --nf-control-option-text: var(--nf-text-primary);
+  --nf-control-icon-offset: 8px;
+
   /* Radii (Figma-verified) */
   --nf-radius-xs: 4px;
   --nf-radius-sm: 6px;
@@ -271,6 +284,7 @@
 
   --nf-hover-bg: rgba(255,255,255,0.06);
   --nf-press-bg: rgba(255,255,255,0.08);
+  --nf-control-focus-ring: color-mix(in srgb, var(--nf-accent-blue) 32%, transparent);
 
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -929,25 +943,31 @@
 
 .nf-node__select {
   width: 100%;
-  height: 22px;
-  background: var(--nf-bg-node-inner);
-  border: 1px solid transparent;
-  border-radius: var(--nf-radius-sm);
-  color: var(--nf-text-primary);
+  height: var(--nf-control-height);
+  background: var(--nf-control-bg);
+  border: 1px solid var(--nf-control-border);
+  border-radius: var(--nf-control-radius);
+  color: var(--nf-text-secondary);
   font-size: var(--nf-font-size-xs);
-  padding: 0 8px;
+  padding: 0 var(--nf-control-padding-x);
   cursor: pointer;
   font-family: inherit;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
   margin-bottom: 0;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
-.nf-node__select:focus { outline: none; }
+.nf-node__select:hover {
+  background: var(--nf-control-bg-hover);
+}
+.nf-node__select:focus,
+.nf-node__select:focus-visible {
+  outline: none;
+  border-color: var(--nf-control-border-focus);
+  box-shadow: 0 0 0 2px var(--nf-control-focus-ring);
+}
 .nf-node__select option {
-  background: var(--nf-bg-node);
-  color: var(--nf-text-primary);
+  background: var(--nf-control-option-bg);
+  color: var(--nf-control-option-text);
 }
 
 .nf-node__select-wrap {
@@ -957,12 +977,12 @@
 
 .nf-node__select--with-icon {
   background-image: none;
-  padding-right: 22px;
+  padding-right: calc(var(--nf-control-icon-offset) * 3);
 }
 
 .nf-node__select-indicator {
   position: absolute;
-  right: 6px;
+  right: var(--nf-control-icon-offset);
   top: 50%;
   transform: translateY(-50%);
   color: var(--nf-text-label);

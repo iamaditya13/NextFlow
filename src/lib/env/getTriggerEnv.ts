@@ -2,6 +2,8 @@ type TriggerEnvOptions = {
   allowMissing?: boolean
 }
 
+type GeminiEnvKey = 'GOOGLE_AI_API_KEY' | 'GEMINI_API_KEY' | 'GOOGLE_API_KEY'
+
 function getRequiredEnvValue(
   key: 'TRIGGER_PROJECT_ID' | 'TRIGGER_SECRET_KEY' | 'TRIGGER_API_URL',
   options?: TriggerEnvOptions
@@ -16,6 +18,48 @@ function getRequiredEnvValue(
   }
 
   throw new Error(`Missing ${key}`)
+}
+
+function isPlaceholderApiKey(value: string): boolean {
+  const normalized = value.trim()
+  const upper = normalized.toUpperCase()
+  return (
+    normalized.length === 0 ||
+    upper === 'YOUR_API_KEY' ||
+    upper === 'YOUR_GOOGLE_API_KEY' ||
+    upper.includes('TODO') ||
+    upper.includes('PLACEHOLDER') ||
+    normalized === '***'
+  )
+}
+
+const GEMINI_ENV_KEYS: GeminiEnvKey[] = [
+  'GOOGLE_AI_API_KEY',
+  'GEMINI_API_KEY',
+  'GOOGLE_API_KEY',
+]
+
+export function getGeminiApiKey(options?: TriggerEnvOptions): string {
+  for (const key of GEMINI_ENV_KEYS) {
+    const value = process.env[key]
+    if (!value) continue
+
+    if (isPlaceholderApiKey(value)) {
+      throw new Error(
+        `Invalid ${key}: placeholder value detected. Set a real Gemini API key in your environment.`
+      )
+    }
+
+    return value
+  }
+
+  if (options?.allowMissing) {
+    return ''
+  }
+
+  throw new Error(
+    `Missing Gemini API key. Set one of: ${GEMINI_ENV_KEYS.join(', ')}.`
+  )
 }
 
 export function getTriggerProjectId(options?: TriggerEnvOptions): string {

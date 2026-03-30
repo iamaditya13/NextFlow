@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_GEMINI_MODEL } from '@/lib/models/geminiModels'
 
 export async function initializeSampleWorkflow(userId: string) {
   const existing = await prisma.workflow.findFirst({
@@ -58,7 +59,7 @@ export async function initializeSampleWorkflow(userId: string) {
             position: { x: 760, y: 180 },
             data: {
               label: 'LLM Node #1',
-              model: 'gemini-1.5-flash',
+              model: DEFAULT_GEMINI_MODEL,
             },
           },
           {
@@ -91,7 +92,7 @@ export async function initializeSampleWorkflow(userId: string) {
             position: { x: 1100, y: 400 },
             data: {
               label: 'LLM Node #2 (Convergence)',
-              model: 'gemini-1.5-flash',
+              model: DEFAULT_GEMINI_MODEL,
             },
           },
         ],

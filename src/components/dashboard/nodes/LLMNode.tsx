@@ -3,13 +3,10 @@
 import { useState } from 'react'
 import { Handle, Position, useNodeConnections } from '@xyflow/react'
 import { ChevronDown, ChevronRight, X } from 'lucide-react'
-
-const MODELS = [
-  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite' },
-  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-]
+import {
+  GEMINI_MODEL_OPTIONS,
+  normalizeGeminiModel,
+} from '@/lib/models/geminiModels'
 
 interface LLMNodeData {
   label?: string
@@ -33,6 +30,7 @@ function getStatusClass(status: string) {
 export function LLMNode({ data, selected }: { data: LLMNodeData; selected?: boolean }) {
   const status = (data.executionStatus || 'idle').toLowerCase()
   const [showSettings, setShowSettings] = useState(false)
+  const selectedModel = normalizeGeminiModel(data.model)
 
   const systemPromptConnections = useNodeConnections({ handleType: 'target', handleId: 'system_prompt' })
   const userMessageConnections = useNodeConnections({ handleType: 'target', handleId: 'user_message' })
@@ -78,10 +76,10 @@ export function LLMNode({ data, selected }: { data: LLMNodeData; selected?: bool
           <div className="nf-node__select-wrap">
             <select
               className="nf-node__select nf-node__select--with-icon"
-              value={data.model || 'gemini-1.5-flash'}
+              value={selectedModel}
               onChange={(e) => data.onUpdateData?.({ model: e.target.value })}
             >
-              {MODELS.map((m) => (
+              {GEMINI_MODEL_OPTIONS.map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
                 </option>

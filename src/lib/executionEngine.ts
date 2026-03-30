@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { triggerTaskAndPoll } from '@/lib/triggerTaskRunner'
+import { DEFAULT_GEMINI_MODEL } from '@/lib/models/geminiModels'
 
 interface WorkflowNode {
   id: string
@@ -346,7 +347,7 @@ async function executeNode(
       const { output } = await triggerTaskAndPoll(
         'llm-execution',
         {
-          model: (node.data.model as string) || 'gemini-1.5-flash',
+          model: (node.data.model as string) || DEFAULT_GEMINI_MODEL,
           systemPrompt,
           userMessage,
           imageUrls,

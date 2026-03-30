@@ -1,4 +1,5 @@
 import type { Node, Edge } from '@xyflow/react'
+import { DEFAULT_GEMINI_MODEL } from '@/lib/models/geminiModels'
 
 const EDGE_STYLE = {
   animated: true,
@@ -121,7 +122,7 @@ const LLM_IMAGE_CAPTIONING: PresetWorkflow = {
       id: 'p4-llm',
       type: 'llm',
       position: { x: 480, y: 200 },
-      data: { label: 'GPT-5 Vision', model: 'gemini-2.0-flash' },
+      data: { label: 'GPT-5 Vision', model: DEFAULT_GEMINI_MODEL },
     },
   ],
   edges: [
@@ -159,7 +160,7 @@ const PROMPT_TO_WORKFLOW: PresetWorkflow = {
       id: 'p5-llm',
       type: 'llm',
       position: { x: 440, y: 140 },
-      data: { label: 'Workflow Generator', model: 'gemini-2.0-flash' },
+      data: { label: 'Workflow Generator', model: DEFAULT_GEMINI_MODEL },
     },
   ],
   edges: [
@@ -234,7 +235,7 @@ const PRODUCT_MARKETING_KIT: PresetWorkflow = {
       position: { x: 860, y: 120 },
       data: {
         label: 'Generate Product Description',
-        model: 'gemini-2.0-flash',
+        model: DEFAULT_GEMINI_MODEL,
       },
     },
     // ── Branch B ─────────────────────────────────────────────────────────────
@@ -269,7 +270,7 @@ const PRODUCT_MARKETING_KIT: PresetWorkflow = {
       position: { x: 1260, y: 440 },
       data: {
         label: 'Generate Marketing Post',
-        model: 'gemini-2.0-flash',
+        model: DEFAULT_GEMINI_MODEL,
       },
     },
   ],

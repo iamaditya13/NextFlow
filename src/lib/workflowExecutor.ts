@@ -6,6 +6,7 @@
  * Handles fan-in (convergence) nodes — e.g. a final LLM node that waits for both
  * a product-image branch AND a video-frame branch to complete before running.
  */
+import { DEFAULT_GEMINI_MODEL } from '@/lib/models/geminiModels'
 
 export type NodeExecutionStatus = 'idle' | 'waiting' | 'running' | 'success' | 'failed'
 
@@ -355,7 +356,7 @@ async function executeNode(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: (node.data.model as string) || 'gemini-2.0-flash',
+          model: (node.data.model as string) || DEFAULT_GEMINI_MODEL,
           systemPrompt,
           userMessage: effectiveMessage,
           imageUrls,

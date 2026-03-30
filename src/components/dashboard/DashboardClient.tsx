@@ -42,6 +42,7 @@ import { UploadImageNode } from './nodes/UploadImageNode'
 import { UploadVideoNode } from './nodes/UploadVideoNode'
 import { KreaImageNode } from './nodes/KreaImageNode'
 import { Play } from 'lucide-react'
+import { DEFAULT_GEMINI_MODEL } from '@/lib/models/geminiModels'
 
 // ── Human-readable node labels ──
 const NODE_LABELS: Record<string, string> = {
@@ -168,6 +169,7 @@ export function DashboardClient({
 
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastSavedRef = useRef<string>('')
+  const executionSessionRef = useRef(0)
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const hideHoveredToolbarRef = useRef<NodeJS.Timeout | null>(null)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
@@ -361,7 +363,7 @@ export function DashboardClient({
         data: {
           text: '',
           prompt: '',
-          model: normalizedType === 'kreaImage' ? 'krea-1' : 'gemini-2.0-flash',
+          model: normalizedType === 'kreaImage' ? 'krea-1' : DEFAULT_GEMINI_MODEL,
           aspectRatio: '1:1',
           label: NODE_LABELS[normalizedType] ?? normalizedType,
         },
@@ -384,7 +386,7 @@ export function DashboardClient({
         data: {
           text: '',
           prompt: '',
-          model: normalizedType === 'kreaImage' ? 'krea-1' : 'gemini-2.0-flash',
+          model: normalizedType === 'kreaImage' ? 'krea-1' : DEFAULT_GEMINI_MODEL,
           aspectRatio: '1:1',
           label: NODE_LABELS[normalizedType] ?? normalizedType,
         },
@@ -435,7 +437,7 @@ export function DashboardClient({
         data: {
           text: '',
           prompt: '',
-          model: normalizedType === 'kreaImage' ? 'krea-1' : 'gemini-2.0-flash',
+          model: normalizedType === 'kreaImage' ? 'krea-1' : DEFAULT_GEMINI_MODEL,
           label: NODE_LABELS[normalizedType] ?? normalizedType,
         },
       }
@@ -473,9 +475,18 @@ export function DashboardClient({
   )
 
   // ── Execution ──
+  const stopExecution = useCallback(() => {
+    executionSessionRef.current += 1
+    setIsExecuting(false)
+    store.clearRun()
+    toast.info('Workflow stopped')
+  }, [store])
+
   const runSingleNode = useCallback(
     async (nodeId: string) => {
       if (isExecuting) return
+      const executionId = executionSessionRef.current + 1
+      executionSessionRef.current = executionId
 
       // Collect the target node + all upstream dependencies via BFS
       const nodeMap = new Map(nodes.map((n) => [n.id, n]))
@@ -516,6 +527,7 @@ export function DashboardClient({
           })),
           {
             onNodeStatus: (id, status) => {
+              if (executionSessionRef.current !== executionId) return
               const mapped =
                 status === 'success'
                   ? ('SUCCESS' as const)
@@ -527,9 +539,11 @@ export function DashboardClient({
               store.setNodeStatus(id, mapped)
             },
             onNodeOutput: (id, output) => {
+              if (executionSessionRef.current !== executionId) return
               store.setNodeOutput(id, output)
             },
             onComplete: ({ failed }) => {
+              if (executionSessionRef.current !== executionId) return
               setIsExecuting(false)
               if (failed.length === 0) {
                 toast.success('Node completed successfully')
@@ -540,6 +554,7 @@ export function DashboardClient({
           }
         )
       } catch {
+        if (executionSessionRef.current !== executionId) return
         setIsExecuting(false)
         toast.error('Execution failed')
       }
@@ -604,6 +619,8 @@ export function DashboardClient({
    */
   const runWorkflowLocal = useCallback(async () => {
     if (isExecuting) return
+    const executionId = executionSessionRef.current + 1
+    executionSessionRef.current = executionId
 
     // Validate: every upload node must have a file
     const uploadNodes = nodes.filter(
@@ -640,6 +657,7 @@ export function DashboardClient({
         })),
         {
           onNodeStatus: (nodeId, status) => {
+            if (executionSessionRef.current !== executionId) return
             const mapped =
               status === 'success'
                 ? ('SUCCESS' as const)
@@ -651,9 +669,11 @@ export function DashboardClient({
             store.setNodeStatus(nodeId, mapped)
           },
           onNodeOutput: (nodeId, output) => {
+            if (executionSessionRef.current !== executionId) return
             store.setNodeOutput(nodeId, output)
           },
           onComplete: ({ failed }) => {
+            if (executionSessionRef.current !== executionId) return
             setIsExecuting(false)
             if (failed.length === 0) {
               toast.success('Workflow completed successfully')
@@ -668,6 +688,7 @@ export function DashboardClient({
         }
       )
     } catch {
+      if (executionSessionRef.current !== executionId) return
       setIsExecuting(false)
       toast.error('Workflow execution failed')
     }
@@ -983,6 +1004,7 @@ export function DashboardClient({
           onExport={exportWorkflow}
           onImport={importWorkflow}
           onRun={runWorkflowLocal}
+          onStop={stopExecution}
           onLoadSample={loadSampleWorkflow}
           isExecuting={isExecuting}
           onToggleHistory={() => store.toggleRightSidebar()}
