@@ -15,7 +15,7 @@ export const NavbarActions = ({
     <div className="box-border justify-self-end">
       <div className="items-center box-border gap-x-2 flex gap-y-2">
         <Link
-          href="/sign-up"
+          href="/sign-up?redirect_url=/dashboard"
           className="focus-visible:border-ring text-sm items-center flex shrink-0 h-[36px] justify-center leading-5 text-center text-nowrap px-4 rounded-full active:scale-95 transition-all duration-500 hover:opacity-90"
           style={{
             backgroundColor: "#ffffff",

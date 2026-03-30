@@ -91,10 +91,10 @@ export const Navbar = () => {
         <nav className="flex flex-col gap-1">
           {[
             { label: "App", href: "/dashboard/node-editor" },
-            { label: "Image Generation", href: "/sign-up" },
-            { label: "Video Generation", href: "/sign-up" },
-            { label: "Upscale & Enhance", href: "/sign-up" },
-            { label: "Mini Apps", href: "/sign-up" },
+            { label: "Image Generation", href: "/sign-up?redirect_url=/dashboard" },
+            { label: "Video Generation", href: "/sign-up?redirect_url=/dashboard" },
+            { label: "Upscale & Enhance", href: "/sign-up?redirect_url=/dashboard" },
+            { label: "Mini Apps", href: "/sign-up?redirect_url=/dashboard" },
           ].map((item) => (
             <Link
               key={item.label}
@@ -108,7 +108,7 @@ export const Navbar = () => {
         </nav>
         <div className="mt-6 flex flex-col gap-3">
           <Link
-            href="/sign-up"
+            href="/sign-up?redirect_url=/dashboard"
             className="flex items-center justify-center text-black text-sm font-medium bg-white rounded-full h-10 px-4 hover:bg-white/90 transition-colors"
           >
             Sign up for free

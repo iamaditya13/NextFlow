@@ -13,9 +13,9 @@ export const DesktopNav = ({
 }: DesktopNavProps) => {
   const navLinks = [
     { label: "App", href: "/dashboard/node-editor" },
-    { label: "Image Generator", href: "/sign-up" },
-    { label: "Video Generator", href: "/sign-up" },
-    { label: "Upscaler", href: "/sign-up" },
+    { label: "Image Generator", href: "/sign-up?redirect_url=/dashboard" },
+    { label: "Video Generator", href: "/sign-up?redirect_url=/dashboard" },
+    { label: "Upscaler", href: "/sign-up?redirect_url=/dashboard" },
     { label: "API", href: "#" },
     { label: "Pricing", href: "/#pricing" },
     { label: "Enterprise", href: "#" },

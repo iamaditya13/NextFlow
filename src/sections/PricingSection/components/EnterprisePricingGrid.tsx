@@ -19,7 +19,7 @@ export const EnterprisePricingGrid = ({ isYearly }: { isYearly?: boolean }) => {
         title="Business"
         descriptionClassName="text-neutral-500"
         description="Secure and collaborative workspace for growing teams"
-        ctaHref="/sign-up"
+        ctaHref="/sign-up?redirect_url=/dashboard"
         ctaText="Try Business"
         everythingPlusIconSrc="/assets/icon-37.svg"
         everythingPlusText="Everything in Max plus:"

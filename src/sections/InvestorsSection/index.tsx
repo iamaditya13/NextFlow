@@ -17,7 +17,7 @@ export const InvestorsSection = () => {
       </div>
       <div className="items-center box-border gap-x-2.5 flex justify-center gap-y-2.5 mt-16 md:mt-20">
         <Link
-          href="/sign-up"
+          href="/sign-up?redirect_url=/dashboard"
           className="relative text-[13px] items-center bg-white box-border flex justify-center leading-[13px] overflow-hidden px-5 py-3 rounded-lg"
         >
           Sign up for free

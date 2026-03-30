@@ -21,7 +21,7 @@ const cards: GalleryCardProps[] = [
     iconSrc: "/assets/icon-12.svg",
     promptLabel: "Prompt",
     promptText: '"Cinematic photo of a Women  "',
-    actionHref: "/sign-up",
+    actionHref: "/sign-up?redirect_url=/dashboard",
     actionText: "Generate image",
   },
   {
@@ -31,7 +31,7 @@ const cards: GalleryCardProps[] = [
     iconSrc: "/assets/icon-17.svg",
     promptLabel: "Prompt",
     promptText: '"Portrait with animated capybara talking about NextFlow"',
-    actionHref: "/sign-up",
+    actionHref: "/sign-up?redirect_url=/dashboard",
     actionText: "Generate video",
   },
   {
@@ -41,7 +41,7 @@ const cards: GalleryCardProps[] = [
     iconSrc: "/assets/icon-18.svg",
     promptLabel: "Prompt",
     promptText: '"Upscale image 512p -> 8K"',
-    actionHref: "/sign-up",
+    actionHref: "/sign-up?redirect_url=/dashboard",
     actionText: "Upscale image",
   },
   {
@@ -52,7 +52,7 @@ const cards: GalleryCardProps[] = [
     promptLabel: "Prompt",
     promptText:
       '"Advertisement shot of a sandwich vertically exploding into different layers"',
-    actionHref: "/sign-up",
+    actionHref: "/sign-up?redirect_url=/dashboard",
     actionText: "Animate image",
   },
   {
@@ -63,7 +63,7 @@ const cards: GalleryCardProps[] = [
     promptLabel: "Prompt",
     promptText:
       '"Dramatic photo of an old offroad truck racing through the desert"',
-    actionHref: "/sign-up",
+    actionHref: "/sign-up?redirect_url=/dashboard",
     actionText: "Generate image",
   },
 ];

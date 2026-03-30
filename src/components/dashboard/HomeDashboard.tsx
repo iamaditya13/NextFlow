@@ -1031,7 +1031,7 @@ export function HomeDashboard({ guestMode = false }: { guestMode?: boolean }) {
 
       event.preventDefault();
       event.stopPropagation();
-      router.push("/sign-up");
+      router.push("/sign-up?redirect_url=/dashboard");
     },
     [guestMode, router],
   );

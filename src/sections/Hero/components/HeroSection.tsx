@@ -119,7 +119,7 @@ export const HeroSection = () => {
           }}
         >
           <Link
-            href="/sign-up"
+            href="/sign-up?redirect_url=/dashboard"
             className="inline-flex h-10 items-center justify-center rounded-full px-10 text-[15px] font-medium text-black bg-white no-underline transition-all duration-200 hover:bg-neutral-100 active:scale-[0.98]"
           >
             Start for free

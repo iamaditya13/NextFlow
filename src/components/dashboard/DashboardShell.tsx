@@ -1,6 +1,7 @@
 'use client'
 
 import { ReactNode, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { X } from 'lucide-react'
@@ -103,14 +104,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               </div>
 
               <div className="flex flex-col gap-3">
-                <a
-                  href="/sign-up"
+                <Link
+                  href="/sign-up?redirect_url=/dashboard"
                   className="flex items-center justify-center h-10 rounded-xl text-sm font-semibold
                              bg-[#0080ff] text-white hover:bg-[#006edb] transition-colors"
                 >
                   Create free account
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/sign-in"
                   className="flex items-center justify-center h-10 rounded-xl text-sm font-semibold
                              dark:bg-white/5 dark:border dark:border-white/10 dark:text-white
@@ -118,7 +119,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                              hover:opacity-80 transition-opacity"
                 >
                   Sign in
-                </a>
+                </Link>
               </div>
             </div>
           </div>

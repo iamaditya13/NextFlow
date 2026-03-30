@@ -201,7 +201,7 @@ export const PricingSection = () => {
               "Limited access to LoRA training",
             ]}
             buttonText="Start for Free"
-            buttonHref="/sign-up"
+            buttonHref="/sign-up?redirect_url=/dashboard"
           />
         </div>
 
@@ -237,7 +237,7 @@ export const PricingSection = () => {
               "Access to selected video models",
             ]}
             buttonText="Get Basic"
-            buttonHref="/sign-up"
+            buttonHref="/sign-up?redirect_url=/dashboard"
           />
         </div>
 
@@ -273,7 +273,7 @@ export const PricingSection = () => {
               "Upscale & enhance to 8K",
             ]}
             buttonText="Get Pro"
-            buttonHref="/sign-up"
+            buttonHref="/sign-up?redirect_url=/dashboard"
           />
         </div>
 
@@ -343,7 +343,7 @@ export const PricingSection = () => {
               "Upscale & enhance to 22K",
             ]}
             buttonText="Get Max"
-            buttonHref="/sign-up"
+            buttonHref="/sign-up?redirect_url=/dashboard"
           />
         </div>
       </div>

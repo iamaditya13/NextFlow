@@ -128,7 +128,7 @@ export const ProprietaryModels = () => {
 
         <div className="flex justify-center gap-2.5 mt-16 md:mt-20">
           <Link
-            href="/sign-up"
+            href="/sign-up?redirect_url=/dashboard"
             className="relative text-[13px] items-center bg-white flex justify-center leading-[13px] overflow-hidden px-5 py-3 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors"
           >
             Sign up for free
