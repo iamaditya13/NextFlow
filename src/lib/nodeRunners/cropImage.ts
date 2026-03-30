@@ -81,13 +81,16 @@ function makeOutputPath(): string {
 
 export async function runCropImage(params: CropImageParams): Promise<{ url: string }> {
   ensureHttpUrl(params.imageUrl)
-  const ffmpegInstaller = await import('@ffmpeg-installer/ffmpeg')
+  const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg') as {
+    default?: { path?: string }
+    path?: string
+  }
   const ffmpegPath = resolveInstallerPath(
-    ffmpegInstaller as { default?: { path?: string }; path?: string },
+    ffmpegInstaller,
     'ffmpeg'
   )
   ffmpeg.setFfmpegPath(ffmpegPath)
-  console.log('ffmpeg path', ffmpegPath)
+  console.log('Resolved ffmpeg path:', ffmpegPath)
   const outputPath = makeOutputPath()
   const startTime = Date.now()
 

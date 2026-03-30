@@ -45,20 +45,26 @@ export const extractFrameTask = task({
     }
 
     try {
-      const ffmpegInstaller = await import('@ffmpeg-installer/ffmpeg')
-      const ffprobeInstaller = await import('@ffprobe-installer/ffprobe')
+      const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg') as {
+        default?: { path?: string }
+        path?: string
+      }
+      const ffprobeInstaller = require('@ffprobe-installer/ffprobe') as {
+        default?: { path?: string }
+        path?: string
+      }
       const ffmpegPath = resolveInstallerPath(
-        ffmpegInstaller as { default?: { path?: string }; path?: string },
+        ffmpegInstaller,
         'ffmpeg'
       )
       const ffprobePath = resolveInstallerPath(
-        ffprobeInstaller as { default?: { path?: string }; path?: string },
+        ffprobeInstaller,
         'ffprobe'
       )
       ffmpeg.setFfmpegPath(ffmpegPath)
       ffmpeg.setFfprobePath(ffprobePath)
-      console.log('ffmpeg path', ffmpegPath)
-      console.log('ffprobe path', ffprobePath)
+      console.log('Resolved ffmpeg path:', ffmpegPath)
+      console.log('Resolved ffprobe path:', ffprobePath)
 
       const { runExtractFrame } = await import('@/lib/nodeRunners/extractFrame')
       const result = await runExtractFrame({

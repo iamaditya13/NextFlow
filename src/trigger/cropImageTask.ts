@@ -56,12 +56,13 @@ export const cropImageTask = task({
     }
 
     try {
-      const ffmpegInstaller = await import('@ffmpeg-installer/ffmpeg')
-      const ffmpegPath = resolveInstallerPath(
-        ffmpegInstaller as { default?: { path?: string }; path?: string }
-      )
+      const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg') as {
+        default?: { path?: string }
+        path?: string
+      }
+      const ffmpegPath = resolveInstallerPath(ffmpegInstaller)
       ffmpeg.setFfmpegPath(ffmpegPath)
-      console.log('ffmpeg path', ffmpegPath)
+      console.log('Resolved ffmpeg path:', ffmpegPath)
 
       const { runCropImage } = await import('@/lib/nodeRunners/cropImage')
       const result = await runCropImage({
